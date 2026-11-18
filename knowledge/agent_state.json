@@ -1,0 +1,222 @@
+{
+  "agent": "SkillBotRobloxMuscle",
+  "game": {
+    "name_official": "[👽] Muscle Legends",
+    "place_id": 3623096087,
+    "universe_id": 1268927906,
+    "creator": "Muscle Legends Studio (group 874427664)",
+    "identity_rule": "Игра определяется по Place ID, а не по названию/иконке"
+  },
+  "version": "1.5",
+  "updated": "2026-11-17",
+  "mode": "Г (ИСПОЛНИТЕЛЬ)",
+  "capabilities": {
+    "web_research": true,
+    "official_roblox_api": true,
+    "screenshot_analysis": true,
+    "game_capture": true,
+    "input_control": true,
+    "persistent_memory": true,
+    "local_ocr": true,
+    "paid_services": false
+  },
+  "perception": {
+    "engine": "vision/eye.py",
+    "read_only": true,
+    "corpus_frames": 48,
+    "scan_v13": {
+      "both_readable": 39,
+      "partial": 1,
+      "unreadable": 0,
+      "no_game_hud": 8,
+      "elapsed_sec": 23.3,
+      "frame_is_game_policy": "только бейджи, найденные в текущем кадре (сохранённая раскладка не доказательство)"
+    },
+    "live_session_2026_11_16": {
+      "window": {
+        "pid": 28160,
+        "hwnd": 59705596,
+        "title": "Roblox",
+        "client_rect": [
+          0,
+          34,
+          1920,
+          1046
+        ],
+        "dpi": "150%"
+      },
+      "health_verdict": "ok",
+      "strength": {
+        "text": "3.11M",
+        "value": 3110000,
+        "confidence": 0.957,
+        "source": "layout/ink_otsu"
+      },
+      "gems": {
+        "text": "16.1M",
+        "value": 16100000,
+        "confidence": 0.967,
+        "source": "anchored/gems_auto"
+      },
+      "repeatability": "3 независимых кадра подряд дали одинаковые значения",
+      "timing_ms": {
+        "capture": 234.5,
+        "read": 835.0,
+        "deep_read": 7070.6
+      },
+      "modal_open": false,
+      "frames": [
+        "debug_frames/live_v13_raw3.png",
+        "debug_frames/live_v13_annotated.png"
+      ]
+    },
+    "known_limits": [
+      "гемы на синем-на-синем не находятся цветовой локацией — используется привязка к бейджу силы",
+      "модалки затемняют сцену — порог бинаризации адаптивный (Otsu)",
+      "HUD округляет до 2 значащих цифр: погрешность до ~0.4%",
+      "кадр чужого окна честно помечается как 'без HUD игры'",
+      "диалог без текстовых кнопок (только иконка X) не распознаётся — сознательный отказ от слепого клика",
+      "одиночное чтение может потерять ведущую цифру; гемы теперь требуют двух согласованных кадров (E-017)",
+      "окно 6 повторов упирается в округление HUD: темп измеряется окном 20 повторов"
+    ],
+    "live_session_2026_11_17": {
+      "frames_with_strength_plate": "42/42",
+      "strength_start": 3120000,
+      "strength_end": 5390000,
+      "gems": 16100000,
+      "gems_spent": 0,
+      "modal_gate": "диалог доказывается управляющим словом и HUD в том же кадре",
+      "frame_gate": "плашка бейджа должна содержать чернила цифр (E-016)",
+      "evidence": "ИЗМЕРЕНО В ЭКСПЕРИМЕНТЕ"
+    }
+  },
+  "knowledge": {
+    "registry": "knowledge/sources.csv",
+    "files": [
+      "game_identity.md",
+      "mechanics.md",
+      "rebirth.md",
+      "events.md",
+      "strategies.md",
+      "unknowns.md",
+      "session_log.md",
+      "sources.csv",
+      "locations.csv",
+      "equipment.csv",
+      "pets.csv",
+      "auras.csv",
+      "economy.csv",
+      "pvp.csv",
+      "bosses.csv",
+      "codes.csv",
+      "gamepasses.csv",
+      "experiments.csv"
+    ],
+    "verified_official": [
+      "Place ID 3623096087 / Universe 1268927906",
+      "Muscle Legends Studio (874427664)",
+      "коды megalift50, speedy50, spacegems50, ultimate250 опубликованы",
+      "Premium benefits (x2 Strength, +2 spins, x2 chests, +1 pet slot)",
+      "group chest и +1 daily spin"
+    ],
+    "verified_interface": [
+      "HUD: сила (жёлтый бейдж) и второй счётчик (гемы синие / конфеты зелёные)",
+      "меню: STATS, REBIRTH, STORE, ITEMS, TRADE, INVITE, PACKS, SPOOKY PASS, QUESTS, CLANS, MOVES, CODES, ULTIMATE, BENEFITS, WHEEL, SETTINGS",
+      "хотбар из 10 упражнений",
+      "колонки игроков: Strength / Brawls / Kills / Rebirths",
+      "баннер арены Brawl с таймером"
+    ]
+  },
+  "safety": {
+    "no_real_money": true,
+    "no_gem_or_item_spend_without_approval": true,
+    "no_trades": true,
+    "no_esc": true,
+    "no_tab_leaderboard": true,
+    "no_exploits": true,
+    "no_rebirth_click": true,
+    "enforcement_levels": 3
+  },
+  "metrics": {
+    "live_game_session_this_version": true,
+    "strength_per_min": 155998,
+    "strength_per_min_source": "EXP-01, сессия 2026-11-17, окно 20 повторов, +660 000 за 253.8 с, 3/4 подхода подтверждены",
+    "strength_per_min_other_runs": [
+      16358,
+      124598
+    ],
+    "gems_per_min": 0,
+    "gems_note": "гемы 16.1M не менялись всю сессию: трат не было",
+    "status": "ИЗМЕРЕНО В ЭКСПЕРИМЕНТЕ",
+    "note": "Замер получен на гантелях (Hand Weights) в том же зале. data/memory.json exercise_efficiency (1 604 809/мин у hand_weights) — устаревшие артефакты старого кода, доверять нельзя."
+  },
+  "open_issues": [
+    "E-005: LearningMemory.update_efficiency() не вызывается — эффективность упражнений не обновляется (базовая линия для проверки теперь есть: 155 998/мин)",
+    "живой прогон после E-013 (единое число вместо двойного чтения) не выполнен: Roblox закрыт",
+    "путь /play → /attach → /train внутри alontito не проверен вживую",
+    "механизм потери ведущей цифры гемов не доказан; кадр не сохранён",
+    "условия/потери rebirth не прочитаны",
+    "награды кодов не проверены"
+  ],
+  "next_actions": [
+    "открыть игру и пройти /play → /attach → /train 2: ожидается отсутствие отрицательных metrics_delta",
+    "EXP-02: смена упражнения равными окнами по 20 повторов",
+    "сохранять кадр при каждом чтении бейджа, чтобы поймать потерю цифры",
+    "прочитать экраны REBIRTH / STATS / STORE / CODES без нажатий"
+  ],
+  "alontito": {
+    "entry": "alontito.py",
+    "launcher": "Alontito.bat",
+    "package": [
+      "ui",
+      "memory",
+      "games_catalog",
+      "skills",
+      "brain",
+      "app"
+    ],
+    "version": "1.1.0",
+    "commands": [
+      "/help",
+      "/games",
+      "/play",
+      "/auto",
+      "/attach",
+      "/status",
+      "/train",
+      "/watch",
+      "/learn",
+      "/memory",
+      "/skills",
+      "/journal",
+      "/safety",
+      "/info",
+      "/about",
+      "/github",
+      "/support",
+      "/theme",
+      "/home",
+      "/quit"
+    ],
+    "allowed_actions": [
+      "TRAIN_DUMBBELLS",
+      "CLOSE_MODAL"
+    ],
+    "memory_store": "data/alontito/memory.json",
+    "journal": "data/alontito/journal.jsonl",
+    "live_path_verified": false,
+    "note": "Экран и команды прогнаны при закрытом Roblox; автопоиск проверен на реальной папке логов (честное «свежий лог не найден») и 7 тестами, но полный цикл с запуском игры вживую не выполнялся.",
+    "autostart": {
+      "enabled_by_default": true,
+      "stored_in": "data/alontito/memory.json",
+      "steps": [
+        "окно Roblox найдено и HUD игры виден → подключение без перезапуска",
+        "окно найдено, но это страницы клиента → запуск нужного плейса",
+        "ничего не запущено → запуск выбранной игры (по умолчанию place 3623096087)"
+      ],
+      "identity_source": "%LOCALAPPDATA%\\Roblox\\logs, строка placeid:, свежесть ≤ 6 ч",
+      "identity_rule": "без лога плейс считается неподтверждённым; имя окна не доказательство",
+      "live_launch_verified": false
+    }
+  }
+}

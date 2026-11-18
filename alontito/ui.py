@@ -1,0 +1,533 @@
+"""Terminal UI for Alontito - zero dependencies, pure ANSI truecolor.
+
+Presentation only: no game logic, no measurements. The palette and layout
+follow the reference mock: deep violet background, lilac accents, pixel logo
+in a dotted frame, two-panel home screen, commands in two columns, and a
+"ready" footer.
+
+One rule keeps everything aligned: width is measured on the VISIBLE text
+(ANSI escapes stripped) and padding is applied only to plain text. Coloured
+lines are padded with pad_to(), never with str.ljust().
+"""
+import ctypes
+import os
+import re
+import shutil
+import sys
+import time
+
+ANSI_RE = re.compile(r"\x1b\[[0-9;]*m")
+
+# ---------------------------------------------------------------- capabilities
+
+
+def enable_ansi() -> bool:
+    """Turn on VT sequences in the Windows console (no-op elsewhere)."""
+    if os.name != "nt":
+        return True
+    try:
+        kernel32 = ctypes.windll.kernel32
+        handle = kernel32.GetStdHandle(-11)          # STD_OUTPUT_HANDLE
+        mode = ctypes.c_uint32()
+        if kernel32.GetConsoleMode(handle, ctypes.byref(mode)):
+            kernel32.SetConsoleMode(handle, mode.value | 0x0004)
+            return True
+    except Exception:
+        pass
+    return False
+
+
+ENABLE_ANSI = enable_ansi()
+
+# --------------------------------------------------------------------- palette
+
+RGB = {
+    "violet":  (169, 123, 255),
+    "lilac":   (204, 176, 255),
+    "purple":  (126, 78, 224),
+    "panel":   (46, 20, 76),
+    "text":    (238, 232, 252),
+    "muted":   (150, 130, 182),
+    "green":   (126, 231, 135),
+    "yellow":  (255, 214, 102),
+    "red":     (255, 122, 146),
+    "cyan":    (120, 220, 255),
+    "white":   (255, 255, 255),
+}
+
+RESET = "\x1b[0m"
+BOLD = "\x1b[1m"
+DIM = "\x1b[2m"
+
+_BACKDROP = (24, 9, 42)
+_BG_ON = True
+_BG_CODE = "\x1b[48;2;%d;%d;%dm" % _BACKDROP
+
+
+def set_background(on: bool):
+    """Some terminals look better without the painted background."""
+    global _BG_ON
+    _BG_ON = bool(on)
+
+
+def _bg_active() -> bool:
+    return bool(ENABLE_ANSI and _BG_ON)
+
+
+def _reset() -> str:
+    return RESET + (_BG_CODE if _bg_active() else "")
+
+
+def fg(color) -> str:
+    if not ENABLE_ANSI:
+        return ""
+    rgb = color if isinstance(color, tuple) else RGB.get(color or "", None)
+    if not rgb:
+        return ""
+    return "\x1b[38;2;%d;%d;%dm" % rgb
+
+
+def bg(color) -> str:
+    if not ENABLE_ANSI:
+        return ""
+    rgb = color if isinstance(color, tuple) else RGB.get(color or "", None)
+    if not rgb:
+        return ""
+    return "\x1b[48;2;%d;%d;%dm" % rgb
+
+
+def paint(text, color=None, bold=False, dim=False, on=None) -> str:
+    """Colour a string. The background is re-applied after every reset, so
+    painted text never punches a hole in the screen background."""
+    if not ENABLE_ANSI:
+        return text
+    prefix = ""
+    if on:
+        prefix += bg(on)
+    if bold:
+        prefix += BOLD
+    if dim:
+        prefix += DIM
+    prefix += fg(color)
+    if not prefix:
+        return text
+    return f"{prefix}{text}{_reset()}"
+
+
+def gradient(text: str, start="violet", end="lilac") -> str:
+    """Left-to-right colour ramp, used for the wordmark."""
+    if not ENABLE_ANSI:
+        return text
+    a, b = RGB[start], RGB[end]
+    n = max(1, len(text) - 1)
+    parts = []
+    for i, ch in enumerate(text):
+        t = i / n
+        rgb = tuple(int(a[k] + (b[k] - a[k]) * t) for k in range(3))
+        parts.append(fg(rgb) + ch)
+    return "".join(parts) + _reset()
+
+
+def width_of(text: str) -> int:
+    return len(ANSI_RE.sub("", text))
+
+
+def pad_to(text: str, width: int) -> str:
+    """Pad a possibly-coloured string to a visible width."""
+    gap = width - width_of(text)
+    return text + " " * gap if gap > 0 else text
+
+
+def clip(text: str, width: int) -> str:
+    """Cut a possibly-coloured string to a visible width, closing the colour."""
+    if width_of(text) <= width:
+        return text
+    out, visible, i = "", 0, 0
+    while i < len(text) and visible < width:
+        m = ANSI_RE.match(text, i)
+        if m:
+            out += m.group(0)
+            i = m.end()
+            continue
+        out += text[i]
+        visible += 1
+        i += 1
+    return out + (_reset() if ENABLE_ANSI else "")
+
+
+def term_width(limit: int = 104) -> int:
+    try:
+        cols = shutil.get_terminal_size((limit, 30)).columns
+    except Exception:
+        cols = limit
+    return max(60, min(limit, cols - 2))
+
+
+def clear_screen():
+    if ENABLE_ANSI:
+        sys.stdout.write("\x1b[2J\x1b[H" + (_BG_CODE if _bg_active() else ""))
+        sys.stdout.flush()
+    else:
+        os.system("cls" if os.name == "nt" else "clear")
+
+
+# ------------------------------------------------------------------- structure
+
+DOT_H = "╌"
+
+
+def hr(width: int = 0, char: str = "─", color: str = "purple") -> str:
+    return paint(char * (width or term_width()), color=color)
+
+
+def title_bar(version: str, width: int = 0) -> str:
+    """Window-style header: prompt glyph, name, decorative controls."""
+    width = width or term_width()
+    left = "  >_   Алонтито   ·   Open Source Bot"
+    right = f"v{version}   ─   ▢   ✕  "
+    pad = max(1, width - width_of(left) - width_of(right))
+    strip = (paint(left, "lilac", bold=True) + " " * pad +
+             paint(right, "muted"))
+    band = paint(" " * width, on="panel")
+    return band + "\n" + strip + "\n" + band
+
+
+def _hard_split(text: str, width: int):
+    """Split an over-long line by visible width, keeping ANSI sequences whole."""
+    out, cur, visible, i = [], "", 0, 0
+    while i < len(text):
+        m = ANSI_RE.match(text, i)
+        if m:
+            cur += m.group(0)
+            i = m.end()
+            continue
+        cur += text[i]
+        visible += 1
+        i += 1
+        if visible >= width:
+            out.append(cur)
+            cur, visible = "", 0
+    if cur:
+        out.append(cur)
+    return out
+
+
+def _wrap(text: str, width: int):
+    """Wrap by visible width; spaces are the only break points we trust."""
+    if width <= 0:
+        return [text]
+    if width_of(text) <= width:
+        return [text]
+    words = text.split(" ")
+    lines, cur = [], ""
+    for word in words:
+        candidate = word if not cur else cur + " " + word
+        if width_of(candidate) <= width:
+            cur = candidate
+        else:
+            if cur:
+                lines.append(cur)
+            cur = word
+    if cur:
+        lines.append(cur)
+    final = []
+    for line in lines:
+        if width_of(line) <= width:
+            final.append(line)
+        else:
+            final.extend(_hard_split(line, width))
+    return final or [""]
+
+
+def box(title: str, lines, width: int = 0, color: str = "purple",
+        title_color: str = "lilac") -> str:
+    """Rounded dotted box with an inline title. Long lines wrap, never cut."""
+    width = max(20, width or term_width())
+    inner = width - 4                       # space between "┆ " and " ┆"
+    label = f"  ✦ {title} " if title else ""
+    if label:
+        rest = max(1, width - 3 - width_of(label))
+        top = (paint("╭" + DOT_H, color) + paint(label, title_color, bold=True) +
+               paint(DOT_H * rest + "╮", color))
+    else:
+        top = paint("╭" + DOT_H * (width - 2) + "╮", color)
+
+    out = [top]
+    for line in lines:
+        for piece in str(line).split("\n"):
+            for chunk in ([""] if piece == "" else _wrap(piece, inner)):
+                out.append(paint("┆ ", color) + pad_to(chunk, inner) +
+                           paint(" ┆", color))
+    out.append(paint("╰" + DOT_H * (width - 2) + "╯", color))
+    return "\n".join(out)
+
+
+def dotted_frame(lines, width: int, color: str = "violet") -> str:
+    """Frame made of dotted lines - the pixel-logo container."""
+    inner = width - 4
+    out = [paint("╭" + DOT_H * (width - 2) + "╮", color)]
+    for line in lines:
+        out.append(paint("┆ ", color) + pad_to(line, inner) +
+                   paint(" ┆", color))
+    out.append(paint("╰" + DOT_H * (width - 2) + "╯", color))
+    return "\n".join(out)
+
+
+def two_columns(pairs, width: int, gap: int = 3, cmd_color: str = "violet",
+                desc_color: str = "muted") -> str:
+    """Render (command, description) pairs in two columns like the mock."""
+    if not pairs:
+        return ""
+    left_n = (len(pairs) + 1) // 2
+    left, right = pairs[:left_n], pairs[left_n:]
+    cmd_w = max(len(c) for c, _ in pairs) + 1
+    col_w = max(18, (width - 2 - gap) // 2)
+    gap = max(gap, width - 2 - 2 * col_w)      # spread columns over the panel
+    room = max(6, col_w - cmd_w - 2)
+
+    def cell(pair):
+        if pair is None:
+            return " " * col_w
+        cmd, desc = pair
+        if len(desc) > room:
+            desc = desc[:room - 1] + "…"
+        text = (paint(cmd.ljust(cmd_w), cmd_color, bold=True) +
+                paint("— ", "muted") + paint(desc, desc_color))
+        return pad_to(text, col_w)
+
+    rows = []
+    for i in range(left_n):
+        a = left[i]
+        b = right[i] if i < len(right) else None
+        rows.append("  " + cell(a) + " " * gap + cell(b))
+    return "\n".join(rows)
+
+
+def table(headers, rows, color: str = "lilac", width: int = 0,
+          header_color: str = "violet") -> str:
+    """Simple aligned table; the first column is left, the rest are padded."""
+    width = width or term_width()
+    rows = [[str(c) for c in row] for row in rows]
+    cols = len(headers)
+    widths = [len(str(h)) for h in headers]
+    for row in rows:
+        for i in range(min(cols, len(row))):
+            widths[i] = max(widths[i], width_of(row[i]))
+    gap = 2
+    total = sum(widths) + gap * (cols - 1)
+    while total > width and max(widths) > 8:
+        widths[widths.index(max(widths))] -= 1
+        total = sum(widths) + gap * (cols - 1)
+
+    def line(cells, colour=None, strong=False):
+        parts = []
+        for i, cell in enumerate(cells[:cols]):
+            text = str(cell)
+            if width_of(text) > widths[i]:
+                text = clip(text, widths[i])
+            text = pad_to(text, widths[i])
+            parts.append(paint(text, colour, bold=strong) if colour else text)
+        return "  ".join(parts).rstrip()
+
+    out = [line([str(h).upper() for h in headers], header_color, strong=True)]
+    out.append(paint("·" * min(width, total), "purple", dim=True))
+    for row in rows:
+        out.append(line(row, color))
+    return "\n".join(out)
+
+
+# ------------------------------------------------------------------ pixel art
+
+# "ALT" wordmark: 3 characters in pixel art with filled inner triangle on A,
+# matching the exact visual reference.
+_ALT_PIXELS = [
+    "  .##...##...#### ",
+    " .####..##....##. ",
+    " ##..##.##....##. ",
+    " ##▲▲##.##....##. ",
+    " ######.##....##. ",
+    " ##..##.##....##. ",
+    " ##..##.######..# ",
+]
+
+# Mascot robot head with headphones giving thumbs up (matching the reference right panel)
+_MASCOT_ROBOT = [
+    "     ╭──────╮     ",
+    " ╭─╮ │ ◕  ◕ │ ╭─╮ ",
+    " │█│ │   ▽  │ │█│ ",
+    " ╰─╯ ╰──────╯ ╰─╯ ",
+    "   👍╭──┴┴──╮     ",
+    "     │  ▲   │     ",
+]
+
+
+def pixel_logo(width: int = 34) -> str:
+    """Pixel 'ALT' inside a dotted frame with sparkles, exactly matching the reference mock."""
+    rows = []
+    for r in _ALT_PIXELS:
+        line = ""
+        for ch in r:
+            if ch == "#":
+                line += paint("██", "lilac")
+            elif ch == "▲":
+                line += paint("▲▲", "purple", bold=True)
+            elif ch == ".":
+                line += "  "
+            else:
+                line += " "
+        rows.append(line)
+
+    inner = width - 4
+    art_w = max(width_of(r) for r in rows)
+    left_pad = " " * max(0, (inner - art_w) // 2)
+
+    body = [""]
+    body.append(left_pad + paint("✦", "lilac") +
+                " " * max(1, inner - 4 - width_of(left_pad)) +
+                paint("✦", "purple"))
+    body.extend(left_pad + row for row in rows)
+    body.append("")
+    body.append(" " * max(0, (inner - 7) // 2) + paint("✦ · ✦", "purple"))
+    body.append("")
+    return dotted_frame(body, width)
+
+
+def robot_mascot_lines() -> list:
+    """Renders the pixel robot with headphones giving thumbs up."""
+    return [
+        paint("     ╭──────╮     ", "lilac"),
+        paint(" ╭─╮ ", "violet") + paint("│ ◕  ◕ │", "text", bold=True) + paint(" ╭─╮ ", "violet") + paint("✦", "lilac"),
+        paint(" │█│ ", "violet") + paint("│   ▽  │", "lilac") + paint(" │█│ ", "violet"),
+        paint(" ╰─╯ ", "violet") + paint("╰──────╯", "lilac") + paint(" ╰─╯ ", "violet"),
+        paint("   👍", "yellow") + paint("╭──┴┴──╮     ", "violet"),
+        paint("     │  ▲   │     ", "purple", bold=True),
+    ]
+
+
+# -------------------------------------------------------------------- messages
+
+
+def ok(text):    print("  " + paint("✔", "green", bold=True) + " " + text)
+def err(text):   print("  " + paint("✖", "red", bold=True) + " " + text)
+def warn(text):  print("  " + paint("!", "yellow", bold=True) + " " + text)
+def info(text):  print("  " + paint("›", "violet", bold=True) + " " + text)
+def step(text):  print("  " + paint("·", "purple") + " " + paint(text, "muted"))
+def say(text):   print(text)
+def blank():     print()
+
+
+def ready(text: str = "Алонтито готов к работе.") -> str:
+    return (paint("› ", "violet", bold=True) + paint(text, "text") + "  " +
+            paint("✦", "lilac") + paint(" █", "violet"))
+
+
+# --------------------------------------------------------------------- widgets
+
+
+class Timer:
+    """Wall-clock for honest reporting: every action prints what it cost."""
+
+    def __enter__(self):
+        self.t0 = time.time()
+        return self
+
+    def __exit__(self, *exc):
+        self.seconds = time.time() - self.t0
+        return False
+
+
+class Spinner:
+    """Minimal activity label for calls that take seconds.
+
+    No animation thread: redirected output stays readable.
+    """
+
+    def __init__(self, label: str, color: str = "violet"):
+        self.label = label
+        self.color = color
+        self.t0 = 0.0
+
+    def __enter__(self):
+        self.t0 = time.time()
+        sys.stdout.write("  " + paint("⠿", self.color) + " " + self.label +
+                         " … ")
+        sys.stdout.flush()
+        return self
+
+    def __exit__(self, exc_type, exc, tb):
+        dt = time.time() - self.t0
+        sys.stdout.write("\r" + " " * (len(self.label) + 14) + "\r")
+        if exc_type is None:
+            sys.stdout.write("  " + paint("✔", "green", bold=True) + " " +
+                             self.label + paint(f"  {dt:.1f}s", "muted") + "\n")
+        else:
+            sys.stdout.write("  " + paint("✖", "red", bold=True) + " " +
+                             self.label + paint(f"  {dt:.1f}s", "muted") + "\n")
+        sys.stdout.flush()
+        return False
+
+
+def prompt(text="  › ") -> str:
+    return input(paint(text, "violet", bold=True))
+
+
+# --------------------------------------------------------------- home screen
+
+def home_screen(version: str, game: str, facts: int, questions: int,
+                skills: int, commands, mcp_active: bool = False) -> str:
+    """The full start screen: title bar, logo panel, info panel with robot mascot, commands."""
+    width = term_width()
+    parts = [title_bar(version, width), ""]
+
+    logo_w = 34
+    logo = pixel_logo(logo_w).split("\n")
+    robot = robot_mascot_lines()
+
+    # MCP status tag
+    mcp_tag = paint("[MCP: 🟢 активен]", "green", bold=True) if mcp_active else paint("[MCP: ⚪ выключен (/mcp)]", "muted")
+
+    right = [
+        "  " + gradient("АЛОНТИТО", "violet", "lilac") +
+        paint(f"  [v{version}]", "purple", bold=True) + "  " + mcp_tag,
+        "",
+        "  " + paint("Опенсорс бот твоей компании", "text") + "  " +
+        paint("✦", "lilac"),
+        "  " + paint("─" * 46, "purple", dim=True),
+        "",
+        "  " + paint("Алонтито — это больше, чем бот.", "text"),
+        "  " + paint("Это твой AI-помощник, созданный с открытым кодом.", "muted"),
+        "",
+        "  " + paint("🐙", "violet") + "  " +
+        paint("Проект:     ", "muted") + paint("open-source", "lilac"),
+        "  " + paint("</>", "violet") + " " +
+        paint("Лицензия:   ", "muted") + paint("MIT", "lilac"),
+        "  " + paint("💜", "violet") + "  " +
+        paint("Разработчик:", "muted") + paint("Alontito Dev Team", "lilac"),
+        "",
+        "  " + paint(f"игра:   {game}", "muted"),
+        "  " + paint(f"память: {facts} факт · {questions} вопрос · "
+                     f"{skills} навык", "muted"),
+    ]
+
+    # Combine left ALT pixel logo and right text + robot
+    avail_right = max(20, width - logo_w - 3)
+    mascot_w = 18 if (width >= 96) else 0
+
+    for i in range(max(len(logo), len(right))):
+        left_line = logo[i] if i < len(logo) else ""
+        right_line = right[i] if i < len(right) else ""
+        robot_line = ("   " + robot[i]) if (mascot_w and i < len(robot)) else ""
+        mid_w = max(10, avail_right - (mascot_w + 3 if mascot_w else 0))
+        full_line = pad_to(left_line, logo_w) + "   " + pad_to(right_line, mid_w) + robot_line
+        parts.append(clip(full_line, width))
+
+    parts.append("")
+    # Matching the reference with star header
+    parts.append(box("★ Доступные команды", [
+        two_columns(commands, width - 6),
+        "",
+        paint("свободный текст понимаю тоже: «запусти игру», «тренируйся», "
+              "«что видишь», «mcp»", "muted", dim=True),
+    ], width=width))
+    parts.append("")
+    return "\n".join(parts)

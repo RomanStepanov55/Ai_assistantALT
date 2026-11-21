@@ -280,6 +280,77 @@ class TestGeometry(unittest.TestCase):
             self.assertLessEqual(ui.width_of(line), ui.term_width() + 4)
         self.assertIn("Алонтито готов к работе", ui.ready())
 
+    def test_every_home_line_has_exactly_the_screen_width(self):
+        for cols in (72, 90, 104, 140):
+            with mock.patch.object(ui, "term_width",
+                                   lambda limit=112, c=cols: max(72, min(limit, c - 2))):
+                screen = ui.home_screen("1.4.0", "Muscle Legends", 0, 0, 0,
+                                        [("/help", "справка")],
+                                        mcp_active=False, pet_status="3D ○ выкл")
+                widths = {ui.width_of(line) for line in screen.split("\n")}
+                # Blank separator lines are the only allowed exception.
+                self.assertEqual(widths - {0}, {ui.term_width()}, (cols, widths))
+
+    def test_two_panel_home_has_matching_frames(self):
+        with mock.patch.object(ui, "term_width", lambda limit=112: 104):
+            screen = ui.home_screen("1.4.0", "Muscle Legends", 0, 0, 0,
+                                    [("/help", "справка")])
+        self.assertEqual(screen.count("╭"), screen.count("╰"))
+        self.assertEqual(screen.count("╭"), 3)      # logo + info + commands
+        self.assertEqual(screen.count("╭╌"), 3)
+
+    def test_home_screen_uses_no_wide_emoji(self):
+        screen = ui.home_screen("1.4.0", "Muscle Legends", 0, 0, 0,
+                                [("/help", "справка")])
+        wide = [ch for ch in ui.ANSI_RE.sub("", screen) if ord(ch) > 0x1F000]
+        self.assertEqual(wide, [], "emoji break frame geometry")
+
+    def test_narrow_screen_stacks_instead_of_overlapping(self):
+        with mock.patch.object(ui, "term_width", lambda limit=112: 72):
+            screen = ui.home_screen("1.4.0", "Muscle Legends", 0, 0, 0,
+                                    [("/help", "справка")])
+        for line in screen.split("\n"):
+            self.assertLessEqual(ui.width_of(line), 72)
+
+    def test_foreign_ansi_is_stripped_when_the_console_has_none(self):
+        # pet3d.badge("ansi") is coloured before the UI layer sees it; on a
+        # console without VT those bytes would print as junk and break frames.
+        with mock.patch.object(ui, "ENABLE_ANSI", False), \
+                mock.patch.object(ui, "term_width", lambda limit=112: 104):
+            screen = ui.home_screen("1.4.0", "Muscle Legends", 0, 0, 0,
+                                    [("/help", "справка")],
+                                    pet_status="\x1b[2m3D ○ выкл\x1b[0m")
+        self.assertNotIn("\x1b", screen)
+        widths = {ui.width_of(line) for line in screen.split("\n")}
+        self.assertEqual(widths - {0}, {104})
+
+    def test_wrapping_keeps_hand_aligned_columns(self):
+        # A help list aligns its second column with spaces; wrapping must not
+        # collapse those runs into single spaces.
+        text = "/3d on | off        — включить / выключить персонажа на столе"
+        lines = ui._wrap(text, 40)
+        self.assertTrue(lines[0].startswith("/3d on | off        —"), lines)
+        for line in lines:
+            self.assertLessEqual(ui.width_of(line), 40)
+
+    def test_wide_glyphs_are_counted_as_two_cells(self):
+        self.assertEqual(ui.width_of("🔥"), 2)
+        self.assertEqual(ui.width_of("АБ"), 2)
+        self.assertEqual(ui.char_width("д"), 1)
+
+    def test_a_wide_glyph_in_body_text_cannot_break_the_frame(self):
+        block = ui.box("ШИРИНА", ["огонь 🔥 и ещё текст " * 3], width=40)
+        widths = {ui.width_of(line) for line in block.split("\n")}
+        self.assertEqual(len(widths), 1, widths)
+
+    def test_prompt_is_silent_when_input_is_piped(self):
+        # Without a TTY the prompt would glue itself to the next panel.
+        with mock.patch("sys.stdin") as fake_stdin, \
+                mock.patch("builtins.input", return_value="/help") as ask:
+            fake_stdin.isatty.return_value = False
+            self.assertEqual(ui.prompt(), "/help")
+        ask.assert_called_once_with()
+
 
 class TestSkillsSafety(unittest.TestCase):
     def test_train_refuses_without_a_visible_game(self):

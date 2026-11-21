@@ -18,11 +18,12 @@ from .brain import Brain, interpret
 from .memory import JOURNAL_FILE, STATUSES, Memory
 from .skills import ALLOWED_ACTIONS, AlontitoBot, guard_report
 from .mcp_server import AlontitoMCPServer
+from .pet_terminal import pet3d
 from .ui import (Timer, box, clear_screen, err, home_screen, info, ok, paint,
                  prompt, ready, say, set_background, step, table, term_width,
                  two_columns, warn, blank)
 
-VERSION = "1.2.0"
+VERSION = "1.4.0"
 
 HOME_COMMANDS = [
     ("/help", "справка"),
@@ -39,6 +40,7 @@ HOME_COMMANDS = [
     ("/journal", "журнал"),
     ("/safety", "запреты"),
     ("/mcp", "MCP-мост для ИИ"),
+    ("/3d", "3D-ассистент"),
     ("/info", "о боте"),
     ("/about", "о проекте"),
     ("/github", "репозиторий"),
@@ -66,6 +68,10 @@ class App:
 
     def start(self):
         self.refresh_home()
+        if pet3d.first_run_prompt():
+            self.refresh_home()
+        else:
+            pet3d.autostart()
         if self._autostart:
             self.auto_attach()
         while self.running:
@@ -73,6 +79,8 @@ class App:
             raw = prompt("  › ")
             line = (raw or "").strip()
             if not line:
+                continue
+            if pet3d.handle_command(line):
                 continue
             command = interpret(line)
             if command is None:
@@ -88,8 +96,11 @@ class App:
         questions = len(self.memory.open_questions())
         skills = len(self.memory.skills())
         game = (self._selected or {}).get("name") or "не выбрана"
+        pet_badge = pet3d.badge("ansi")
+        pet_on = pet3d.ctl.status == "on"
         print(home_screen(VERSION, game, facts, questions, skills,
-                          HOME_COMMANDS, mcp_active=self._mcp_enabled))
+                          HOME_COMMANDS, mcp_active=self._mcp_enabled,
+                          pet_status=pet_badge, pet_on=pet_on))
         print()
 
     def dispatch(self, command: str, raw: str):
@@ -110,6 +121,8 @@ class App:
             "/journal": self.cmd_journal,
             "/safety": self.cmd_safety,
             "/mcp": self.cmd_mcp,
+            "/3d": self.cmd_3d,
+            "/3д": self.cmd_3d,
             "/info": self.cmd_info,
             "/about": self.cmd_info,
             "/github": self.cmd_github,
@@ -233,6 +246,12 @@ class App:
                 ("/skills", "успех и прирост/мин"),
                 ("/journal [n]", "события журнала"),
                 ("/safety", "границы действий"),
+                ("/mcp", "MCP-мост для ИИ"),
+                ("/3d", "3D-ассистент"),
+                ("/info", "о боте"),
+                ("/about", "о проекте"),
+                ("/github", "репозиторий"),
+                ("/support", "связь"),
                 ("/home", "главный экран"),
                 ("/theme", "фон вкл/выкл"),
                 ("/quit", "выход"),
@@ -671,6 +690,10 @@ class App:
                 paint(f"  python {Path(__file__).resolve().parent / 'mcp_server.py'}", "violet"),
             ], width=term_width(), color="purple"))
         blank()
+
+    def cmd_3d(self, args):
+        cmd_line = "/3d " + " ".join(args) if args else "/3d"
+        pet3d.handle_command(cmd_line)
 
     def cmd_info(self, args):
         blank()

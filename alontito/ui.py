@@ -5,9 +5,15 @@ follow the reference mock: deep violet background, lilac accents, pixel logo
 in a dotted frame, two-panel home screen, commands in two columns, and a
 "ready" footer.
 
-One rule keeps everything aligned: width is measured on the VISIBLE text
-(ANSI escapes stripped) and padding is applied only to plain text. Coloured
-lines are padded with pad_to(), never with str.ljust().
+Two rules keep everything aligned:
+  1. width is measured on the VISIBLE text (ANSI escapes stripped);
+  2. padding is applied only to plain text, never with str.ljust on a painted
+     string;
+  3. no emoji anywhere: every glyph here is one terminal cell wide, so frames
+     stay square in Windows Terminal, conhost and VS Code alike.
+
+home_screen() composes two framed panels of EQUAL height; if a panel's text is
+longer, the other one gets blank framed lines instead of a ragged edge.
 """
 import ctypes
 import os
@@ -15,8 +21,10 @@ import re
 import shutil
 import sys
 import time
+import unicodedata
 
 ANSI_RE = re.compile(r"\x1b\[[0-9;]*m")
+TOKEN_RE = re.compile(r"\s+|\S+")
 
 # ---------------------------------------------------------------- capabilities
 
@@ -45,7 +53,9 @@ RGB = {
     "violet":  (169, 123, 255),
     "lilac":   (204, 176, 255),
     "purple":  (126, 78, 224),
+    "deep":    (17, 6, 31),
     "panel":   (46, 20, 76),
+    "edge":    (92, 56, 160),
     "text":    (238, 232, 252),
     "muted":   (150, 130, 182),
     "green":   (126, 231, 135),
@@ -59,7 +69,7 @@ RESET = "\x1b[0m"
 BOLD = "\x1b[1m"
 DIM = "\x1b[2m"
 
-_BACKDROP = (24, 9, 42)
+_BACKDROP = RGB["deep"]
 _BG_ON = True
 _BG_CODE = "\x1b[48;2;%d;%d;%dm" % _BACKDROP
 
@@ -128,8 +138,21 @@ def gradient(text: str, start="violet", end="lilac") -> str:
     return "".join(parts) + _reset()
 
 
+def char_width(ch: str) -> int:
+    """Cells taken by one character.
+
+    East-Asian Wide/Fullwidth glyphs (emoji, CJK) take two cells; combining
+    marks take none. Ambiguous glyphs are counted as one, which is how Windows
+    Terminal, conhost and VS Code draw them by default.
+    """
+    if unicodedata.combining(ch):
+        return 0
+    return 2 if unicodedata.east_asian_width(ch) in ("W", "F") else 1
+
+
 def width_of(text: str) -> int:
-    return len(ANSI_RE.sub("", text))
+    """Visible width in terminal cells, ANSI escapes excluded."""
+    return sum(char_width(ch) for ch in ANSI_RE.sub("", text))
 
 
 def pad_to(text: str, width: int) -> str:
@@ -143,24 +166,27 @@ def clip(text: str, width: int) -> str:
     if width_of(text) <= width:
         return text
     out, visible, i = "", 0, 0
-    while i < len(text) and visible < width:
+    while i < len(text):
         m = ANSI_RE.match(text, i)
         if m:
             out += m.group(0)
             i = m.end()
             continue
+        w = char_width(text[i])
+        if visible + w > width:
+            break
         out += text[i]
-        visible += 1
+        visible += w
         i += 1
     return out + (_reset() if ENABLE_ANSI else "")
 
 
-def term_width(limit: int = 104) -> int:
+def term_width(limit: int = 112) -> int:
     try:
         cols = shutil.get_terminal_size((limit, 30)).columns
     except Exception:
         cols = limit
-    return max(60, min(limit, cols - 2))
+    return max(72, min(limit, cols - 2))
 
 
 def clear_screen():
@@ -193,7 +219,8 @@ def title_bar(version: str, width: int = 0) -> str:
 
 
 def _hard_split(text: str, width: int):
-    """Split an over-long line by visible width, keeping ANSI sequences whole."""
+    """Split an over-long line by visible width, keeping ANSI sequences whole
+    and never cutting a double-width glyph in half."""
     out, cur, visible, i = [], "", 0, 0
     while i < len(text):
         m = ANSI_RE.match(text, i)
@@ -201,49 +228,61 @@ def _hard_split(text: str, width: int):
             cur += m.group(0)
             i = m.end()
             continue
-        cur += text[i]
-        visible += 1
-        i += 1
-        if visible >= width:
+        w = char_width(text[i])
+        if visible + w > width and cur:
             out.append(cur)
             cur, visible = "", 0
+            continue
+        cur += text[i]
+        visible += w
+        i += 1
     if cur:
         out.append(cur)
     return out
 
 
 def _wrap(text: str, width: int):
-    """Wrap by visible width; spaces are the only break points we trust."""
+    """Wrap by visible width, keeping the author's spacing intact.
+
+    Lines that already fit are returned untouched. Long lines break at spaces,
+    but runs of spaces inside a line survive, so hand-aligned columns (command
+    lists, status rows) keep their shape. A single word wider than the panel is
+    hard-split, because there is no honest break point left.
+    """
     if width <= 0:
         return [text]
     if width_of(text) <= width:
         return [text]
-    words = text.split(" ")
     lines, cur = [], ""
-    for word in words:
-        candidate = word if not cur else cur + " " + word
-        if width_of(candidate) <= width:
-            cur = candidate
-        else:
-            if cur:
-                lines.append(cur)
-            cur = word
-    if cur:
-        lines.append(cur)
-    final = []
-    for line in lines:
-        if width_of(line) <= width:
-            final.append(line)
-        else:
-            final.extend(_hard_split(line, width))
-    return final or [""]
+    for tok in TOKEN_RE.findall(text):
+        if width_of(cur + tok) <= width:
+            cur += tok
+            continue
+        if tok.isspace():
+            if cur.strip():
+                lines.append(cur.rstrip())
+            cur = ""
+            continue
+        if cur.strip():
+            lines.append(cur.rstrip())
+        pieces = _hard_split(tok, width)
+        lines.extend(pieces[:-1])
+        cur = pieces[-1]
+    if cur.strip():
+        lines.append(cur.rstrip())
+    return lines or [""]
 
 
-def box(title: str, lines, width: int = 0, color: str = "purple",
-        title_color: str = "lilac") -> str:
-    """Rounded dotted box with an inline title. Long lines wrap, never cut."""
-    width = max(20, width or term_width())
-    inner = width - 4                       # space between "┆ " and " ┆"
+def panel(title: str, lines, width: int, color: str = "border",
+          title_color: str = "lilac") -> list:
+    """Render a framed panel and return its LINES.
+
+    Body lines are wrapped and clipped to the inner width, so a long word can
+    never push the right border out of place. Returned as a list to let the
+    caller join two panels of equal height.
+    """
+    width = max(24, width)
+    inner = width - 4                       # between "┆ " and " ┆"
     label = f"  ✦ {title} " if title else ""
     if label:
         rest = max(1, width - 3 - width_of(label))
@@ -252,25 +291,35 @@ def box(title: str, lines, width: int = 0, color: str = "purple",
     else:
         top = paint("╭" + DOT_H * (width - 2) + "╮", color)
 
-    out = [top]
+    body = []
     for line in lines:
         for piece in str(line).split("\n"):
-            for chunk in ([""] if piece == "" else _wrap(piece, inner)):
-                out.append(paint("┆ ", color) + pad_to(chunk, inner) +
-                           paint(" ┆", color))
-    out.append(paint("╰" + DOT_H * (width - 2) + "╯", color))
-    return "\n".join(out)
+            body.extend([""] if piece == "" else _wrap(piece, inner))
 
-
-def dotted_frame(lines, width: int, color: str = "violet") -> str:
-    """Frame made of dotted lines - the pixel-logo container."""
-    inner = width - 4
-    out = [paint("╭" + DOT_H * (width - 2) + "╮", color)]
-    for line in lines:
-        out.append(paint("┆ ", color) + pad_to(line, inner) +
+    out = [top]
+    for chunk in body:
+        out.append(paint("┆ ", color) + pad_to(clip(chunk, inner), inner) +
                    paint(" ┆", color))
     out.append(paint("╰" + DOT_H * (width - 2) + "╯", color))
-    return "\n".join(out)
+    return out
+
+
+def _panel_blank(color: str, width: int) -> str:
+    inner = max(0, width - 4)
+    return paint("┆ ", color) + " " * inner + paint(" ┆", color)
+
+
+def box(title: str, lines, width: int = 0, color: str = "border",
+        title_color: str = "lilac") -> str:
+    """Rounded dotted box with an inline title. Long lines wrap, never cut."""
+    width = width or term_width()
+    return "\n".join(panel(title, lines, width, color=color,
+                           title_color=title_color))
+
+
+def dotted_frame(lines, width: int, color: str = "border") -> str:
+    """Frame made of dotted lines - the pixel-logo container."""
+    return "\n".join(panel("", lines, width, color=color))
 
 
 def two_columns(pairs, width: int, gap: int = 3, cmd_color: str = "violet",
@@ -338,69 +387,75 @@ def table(headers, rows, color: str = "lilac", width: int = 0,
 
 # ------------------------------------------------------------------ pixel art
 
-# "ALT" wordmark: 3 characters in pixel art with filled inner triangle on A,
-# matching the exact visual reference.
-_ALT_PIXELS = [
-    "  .##...##...#### ",
-    " .####..##....##. ",
-    " ##..##.##....##. ",
-    " ##▲▲##.##....##. ",
-    " ######.##....##. ",
-    " ##..##.##....##. ",
-    " ##..##.######..# ",
+# "AL" wordmark: one character per pixel, each pixel printed as two cells so
+# the letters read square instead of squeezed. 15 pixels wide + 2 gap + 14 = 30.
+_A_PIXELS = [
+    "..###..",
+    ".##.##.",
+    "##...##",
+    "##...##",
+    "#######",
+    "##...##",
+    "##...##",
+    "##...##",
+]
+_L_PIXELS = [
+    "##.....",
+    "##.....",
+    "##.....",
+    "##.....",
+    "##.....",
+    "##.....",
+    "##.....",
+    "######.",
 ]
 
-# Mascot robot head with headphones giving thumbs up (matching the reference right panel)
-_MASCOT_ROBOT = [
-    "     ╭──────╮     ",
-    " ╭─╮ │ ◕  ◕ │ ╭─╮ ",
-    " │█│ │   ▽  │ │█│ ",
-    " ╰─╯ ╰──────╯ ╰─╯ ",
-    "   👍╭──┴┴──╮     ",
-    "     │  ▲   │     ",
-]
 
-
-def pixel_logo(width: int = 34) -> str:
-    """Pixel 'ALT' inside a dotted frame with sparkles, exactly matching the reference mock."""
+def _pixel_rows() -> list:
     rows = []
-    for r in _ALT_PIXELS:
+    for a_row, l_row in zip(_A_PIXELS, _L_PIXELS):
         line = ""
-        for ch in r:
-            if ch == "#":
-                line += paint("██", "lilac")
-            elif ch == "▲":
-                line += paint("▲▲", "purple", bold=True)
-            elif ch == ".":
-                line += "  "
-            else:
-                line += " "
+        for px in a_row:
+            line += paint("██", "lilac") if px == "#" else "  "
+        line += "  "
+        for px in l_row:
+            line += paint("██", "violet") if px == "#" else "  "
         rows.append(line)
+    return rows
 
+
+def logo_body(width: int) -> list:
+    """Content lines for the logo panel (no frame, caller adds it)."""
     inner = width - 4
+    rows = _pixel_rows()
     art_w = max(width_of(r) for r in rows)
-    left_pad = " " * max(0, (inner - art_w) // 2)
+    left = " " * max(0, (inner - art_w) // 2)
 
     body = [""]
-    body.append(left_pad + paint("✦", "lilac") +
-                " " * max(1, inner - 4 - width_of(left_pad)) +
+    # Sparkles sit on the frame's inner corners, not near the art.
+    body.append(paint("✦", "lilac") + " " * max(1, inner - 2) +
                 paint("✦", "purple"))
-    body.extend(left_pad + row for row in rows)
+    body.extend(left + row for row in rows)
     body.append("")
     body.append(" " * max(0, (inner - 7) // 2) + paint("✦ · ✦", "purple"))
     body.append("")
-    return dotted_frame(body, width)
+    return body
+
+
+def pixel_logo(width: int = 36) -> str:
+    """Pixel 'AL' inside a dotted frame with sparkles."""
+    return "\n".join(panel("", logo_body(width), width))
 
 
 def robot_mascot_lines() -> list:
-    """Renders the pixel robot with headphones giving thumbs up."""
+    """No-emoji mascot kept for API compatibility: a small idle robot face."""
     return [
-        paint("     ╭──────╮     ", "lilac"),
-        paint(" ╭─╮ ", "violet") + paint("│ ◕  ◕ │", "text", bold=True) + paint(" ╭─╮ ", "violet") + paint("✦", "lilac"),
-        paint(" │█│ ", "violet") + paint("│   ▽  │", "lilac") + paint(" │█│ ", "violet"),
-        paint(" ╰─╯ ", "violet") + paint("╰──────╯", "lilac") + paint(" ╰─╯ ", "violet"),
-        paint("   👍", "yellow") + paint("╭──┴┴──╮     ", "violet"),
-        paint("     │  ▲   │     ", "purple", bold=True),
+        paint("  ╭──────╮  ", "edge"),
+        paint("  │ ◉  ◉ │  ", "lilac"),
+        paint("  │  ──  │  ", "lilac"),
+        paint("  ╰──┬───╯  ", "edge"),
+        paint("   ╭─┴─╮    ", "edge"),
+        paint("   │ ▲ │    ", "purple", bold=True),
     ]
 
 
@@ -417,8 +472,8 @@ def blank():     print()
 
 
 def ready(text: str = "Алонтито готов к работе.") -> str:
-    return (paint("› ", "violet", bold=True) + paint(text, "text") + "  " +
-            paint("✦", "lilac") + paint(" █", "violet"))
+    return (paint("  › ", "violet", bold=True) + paint(text, "text") + "  " +
+            paint("✦", "lilac") + paint(" ▌", "purple"))
 
 
 # --------------------------------------------------------------------- widgets
@@ -468,62 +523,106 @@ class Spinner:
 
 
 def prompt(text="  › ") -> str:
+    """Read a command.
+
+    With piped input there is no echo and no newline after the prompt, so the
+    next panel would be glued to "  › ". In that case the prompt is skipped
+    entirely: machine-readable output stays square.
+    """
+    try:
+        interactive = sys.stdin is not None and sys.stdin.isatty()
+    except Exception:
+        interactive = False
+    if not interactive:
+        return input()
     return input(paint(text, "violet", bold=True))
 
 
 # --------------------------------------------------------------- home screen
 
+def _status_chip(label: str, on: bool) -> str:
+    """A one-cell dot plus label; colour carries the state, so it stays quiet."""
+    dot = paint("●" if on else "○", "green" if on else "muted", bold=on)
+    return dot + " " + paint(label, "text" if on else "muted")
+
+
+def info_body(version: str, game: str, facts: int, questions: int,
+              skills: int, mcp_active: bool, pet_status: str,
+              width: int) -> list:
+    inner = width - 4
+    rule = paint("─" * max(4, inner - 6), "purple", dim=True)
+
+    chips = (paint("◈ open-source", "lilac") + "   " +
+             paint("⌘ MIT", "lilac") + "   " +
+             paint("♥ Alontito Dev Team", "lilac"))
+
+    status = (_status_chip(f"MCP · {'вкл' if mcp_active else 'выкл'}", mcp_active)
+              + "     " + pet_status)
+
+    return [
+        gradient("АЛОНТИТО", "violet", "lilac") +
+        paint(f"   v{version}", "purple", bold=True),
+        "",
+        paint("Опенсорс бот твоей компании", "text") + "   " +
+        paint("✦", "lilac"),
+        "  " + rule,
+        "Алонтито — это больше, чем бот.",
+        paint("Терминальный агент для Roblox: сам находит игру, читает HUD",
+              "muted"),
+        paint("и подтверждает каждый подход числом.", "muted"),
+        "",
+        chips,
+        "",
+        "  " + status,
+        "",
+        paint("игра    ", "muted") + paint(game, "lilac"),
+        paint("память  ", "muted") +
+        paint(f"{facts} факт · {questions} вопрос · {skills} навык", "lilac"),
+    ]
+
+
 def home_screen(version: str, game: str, facts: int, questions: int,
-                skills: int, commands, mcp_active: bool = False) -> str:
-    """The full start screen: title bar, logo panel, info panel with robot mascot, commands."""
+                skills: int, commands, mcp_active: bool = False,
+                pet_status: str = "", pet_on: bool = False) -> str:
+    """The start screen: header, logo panel, info panel, commands, footer."""
     width = term_width()
     parts = [title_bar(version, width), ""]
 
-    logo_w = 34
-    logo = pixel_logo(logo_w).split("\n")
-    robot = robot_mascot_lines()
+    if not pet_status:
+        pet_status = _status_chip("3D · выкл", bool(pet_on))
+    elif not ENABLE_ANSI:
+        # A caller may hand us a pre-coloured badge. On a console without VT
+        # those bytes would print as visible junk and break the frame, so the
+        # status degrades to plain text.
+        pet_status = ANSI_RE.sub("", pet_status)
+    elif pet_on and not ANSI_RE.search(pet_status):
+        pet_status = paint(pet_status, "green")
 
-    # MCP status tag
-    mcp_tag = paint("[MCP: 🟢 активен]", "green", bold=True) if mcp_active else paint("[MCP: ⚪ выключен (/mcp)]", "muted")
-
-    right = [
-        "  " + gradient("АЛОНТИТО", "violet", "lilac") +
-        paint(f"  [v{version}]", "purple", bold=True) + "  " + mcp_tag,
-        "",
-        "  " + paint("Опенсорс бот твоей компании", "text") + "  " +
-        paint("✦", "lilac"),
-        "  " + paint("─" * 46, "purple", dim=True),
-        "",
-        "  " + paint("Алонтито — это больше, чем бот.", "text"),
-        "  " + paint("Это твой AI-помощник, созданный с открытым кодом.", "muted"),
-        "",
-        "  " + paint("🐙", "violet") + "  " +
-        paint("Проект:     ", "muted") + paint("open-source", "lilac"),
-        "  " + paint("</>", "violet") + " " +
-        paint("Лицензия:   ", "muted") + paint("MIT", "lilac"),
-        "  " + paint("💜", "violet") + "  " +
-        paint("Разработчик:", "muted") + paint("Alontito Dev Team", "lilac"),
-        "",
-        "  " + paint(f"игра:   {game}", "muted"),
-        "  " + paint(f"память: {facts} факт · {questions} вопрос · "
-                     f"{skills} навык", "muted"),
-    ]
-
-    # Combine left ALT pixel logo and right text + robot
-    avail_right = max(20, width - logo_w - 3)
-    mascot_w = 18 if (width >= 96) else 0
-
-    for i in range(max(len(logo), len(right))):
-        left_line = logo[i] if i < len(logo) else ""
-        right_line = right[i] if i < len(right) else ""
-        robot_line = ("   " + robot[i]) if (mascot_w and i < len(robot)) else ""
-        mid_w = max(10, avail_right - (mascot_w + 3 if mascot_w else 0))
-        full_line = pad_to(left_line, logo_w) + "   " + pad_to(right_line, mid_w) + robot_line
-        parts.append(clip(full_line, width))
+    if width >= 94:
+        logo_w, gap = 36, 3
+        info_w = width - logo_w - gap
+        left = panel("", logo_body(logo_w), logo_w)
+        right = panel("Алонтито", info_body(version, game, facts, questions,
+                                            skills, mcp_active, pet_status,
+                                            info_w), info_w)
+        diff = len(left) - len(right)
+        if diff > 0:
+            right = (right[:-1] +
+                     [_panel_blank("border", info_w)] * diff + right[-1:])
+        elif diff < 0:
+            left = (left[:-1] + [_panel_blank("border", logo_w)] * (-diff) +
+                    left[-1:])
+        for l_line, r_line in zip(left, right):
+            parts.append(l_line + " " * gap + r_line)
+    else:
+        parts.extend(panel("", logo_body(width), width))
+        parts.append("")
+        parts.extend(panel("Алонтито", info_body(version, game, facts,
+                                                 questions, skills, mcp_active,
+                                                 pet_status, width), width))
 
     parts.append("")
-    # Matching the reference with star header
-    parts.append(box("★ Доступные команды", [
+    parts.append(box("Доступные команды", [
         two_columns(commands, width - 6),
         "",
         paint("свободный текст понимаю тоже: «запусти игру», «тренируйся», "

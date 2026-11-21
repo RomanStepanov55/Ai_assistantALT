@@ -1,0 +1,57 @@
+{
+  "enabled": true,
+  "asked": true,
+  "mode": "auto",
+  "scale": 0.8,
+  "fps": 60,
+  "gpu": "auto",
+  "character": "",
+  "portal": "",
+  "walk_speed": 95,
+  "park_x": 0.82,
+  "portal_interval": [
+    70,
+    140
+  ],
+  "ide_exes": [
+    "code.exe",
+    "code - insiders.exe",
+    "cursor.exe",
+    "windsurf.exe",
+    "vscodium.exe",
+    "pycharm64.exe",
+    "pycharm.exe",
+    "idea64.exe",
+    "webstorm64.exe",
+    "clion64.exe",
+    "rider64.exe",
+    "goland64.exe",
+    "phpstorm64.exe",
+    "rubymine64.exe",
+    "datagrip64.exe",
+    "devenv.exe",
+    "sublime_text.exe",
+    "notepad++.exe",
+    "atom.exe",
+    "zed.exe",
+    "studio64.exe",
+    "eclipse.exe",
+    "kate.exe",
+    "gvim.exe",
+    "nvim-qt.exe",
+    "robloxstudiobeta.exe"
+  ],
+  "ide_title_hints": [
+    "visual studio code",
+    "pycharm",
+    "intellij idea",
+    "sublime text",
+    "cursor",
+    "roblox studio"
+  ],
+  "roblox_exes": [
+    "robloxplayerbeta.exe",
+    "robloxplayer.exe",
+    "windows10universal.exe"
+  ]
+}

@@ -8,7 +8,7 @@
     "identity_rule": "Игра определяется по Place ID, а не по названию/иконке"
   },
   "version": "1.5",
-  "updated": "2026-11-17",
+  "updated": "2026-11-21",
   "mode": "Г (ИСПОЛНИТЕЛЬ)",
   "capabilities": {
     "web_research": true,
@@ -173,9 +173,11 @@
       "games_catalog",
       "skills",
       "brain",
-      "app"
+      "app",
+      "pet_terminal",
+      "mcp_server"
     ],
-    "version": "1.1.0",
+    "version": "1.4.0",
     "commands": [
       "/help",
       "/games",
@@ -190,12 +192,14 @@
       "/skills",
       "/journal",
       "/safety",
+      "/mcp",
+      "/3d",
       "/info",
       "/about",
       "/github",
       "/support",
-      "/theme",
       "/home",
+      "/theme",
       "/quit"
     ],
     "allowed_actions": [
@@ -205,7 +209,7 @@
     "memory_store": "data/alontito/memory.json",
     "journal": "data/alontito/journal.jsonl",
     "live_path_verified": false,
-    "note": "Экран и команды прогнаны при закрытом Roblox; автопоиск проверен на реальной папке логов (честное «свежий лог не найден») и 7 тестами, но полный цикл с запуском игры вживую не выполнялся.",
+    "note": "Экран и команды прогнаны при закрытом Roblox: живой прогон alontito.py даёт код 0, 10 994 символа, 0 строк [INIT], без traceback и без байтов ESC в файле. Автопоиск проверен на реальной папке логов (честное «свежий лог не найден») и 7 тестами; полный цикл с запуском игры вживую не выполнялся.",
     "autostart": {
       "enabled_by_default": true,
       "stored_in": "data/alontito/memory.json",
@@ -217,6 +221,37 @@
       "identity_source": "%LOCALAPPDATA%\\Roblox\\logs, строка placeid:, свежесть ≤ 6 ч",
       "identity_rule": "без лога плейс считается неподтверждённым; имя окна не доказательство",
       "live_launch_verified": false
-    }
+    },
+    "ui": {
+      "design": "две панели равной высоты (лого 36 + зазор 3 + информация), команды двумя колонками, футер «готов к работе»",
+      "width_rule": "ширина = видимый текст в клетках после снятия ANSI; padding только через pad_to/clip, не str.ljust",
+      "term_width": "мин 72, максимум 112 колонок; ниже 94 панели складываются вертикально",
+      "glyphs": "только одноклеточные символы; эмодзи запрещены — они дают две клетки и ломают рамку",
+      "width_model": "широкие глифы (W/F) = 2 клетки, комбинирующие = 0, остальные = 1; clip() не режет широкий глиф пополам",
+      "verified_widths": [
+        72,
+        80,
+        104,
+        140,
+        200
+      ],
+      "empty_line_width": 0,
+      "sample_104": {
+        "nonblank_lines": 33,
+        "width": 104
+      }
+    },
+    "tests": {
+      "total": 129,
+      "modules": {
+        "test_alontito": 44,
+        "test_pet_logic": 35,
+        "test_verification": 29,
+        "test_eye": 21
+      },
+      "command": "python -m unittest tests.test_alontito tests.test_verification tests.test_eye tests.test_pet_logic",
+      "result": "129 OK (единственное предупреждение — ResourceWarning в test_eye)"
+    },
+    "home_screen_version": "1.4.0"
   }
 }

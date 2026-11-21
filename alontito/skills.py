@@ -138,11 +138,13 @@ class AlontitoBot:
             return SkillResult("close_dialog", False, f"ошибка: {e}",
                                seconds=time.time() - t0, error=str(e))
 
-    def train(self, sets: int = 3, on_event: Optional[Callable] = None) -> SkillResult:
+    def train(self, sets: int = 3, on_event: Optional[Callable] = None,
+              action_name: str = "TRAIN_DUMBBELLS", reps: Optional[int] = None) -> SkillResult:
         """Train in verified sets. Refuses on a non-game frame or open dialog."""
         from config import LIFTS_PER_SET
         from games.game_adapter import GameAction
 
+        lifts_count = reps if reps is not None else LIFTS_PER_SET
         t0 = time.time()
         rows: List[Dict] = []
         verified_gain = 0
@@ -164,10 +166,11 @@ class AlontitoBot:
                     state = adapter.observe()
                     dialogs += 1
 
-                action = GameAction(name="TRAIN_DUMBBELLS",
-                                    description="Hand Weights", category="train")
+                action = GameAction(name=action_name,
+                                    description=action_name.replace("_", " ").title(),
+                                    category="train")
                 if action.name not in ALLOWED_ACTIONS:
-                    return SkillResult("train", False,
+                    return SkillResult(action_name.lower(), False,
                                        f"действие {action.name} запрещено политикой",
                                        seconds=time.time() - t0)
                 res = adapter.execute_action(action, state)
@@ -185,9 +188,10 @@ class AlontitoBot:
             after = actions.read_strength()
             total = (after - before) if None not in (before, after) else None
             seconds = time.time() - t0
+            skill_tag = "train" if action_name == "TRAIN_DUMBBELLS" else action_name.lower()
             if verified_sets == 0:
                 return SkillResult(
-                    "train", False,
+                    skill_tag, False,
                     "ни один подход не подтверждён (бейдж не читался или игра "
                     "игнорировала повторы)", reward=None, seconds=seconds,
                     metrics={"before": before, "after": after},
@@ -196,16 +200,17 @@ class AlontitoBot:
                       f"+{verified_gain:,} силы")
             if total is not None and total != verified_gain:
                 detail += f" (граница окна: {total:+,})"
-            return SkillResult("train", True, detail, reward=verified_gain,
+            return SkillResult(skill_tag, True, detail, reward=verified_gain,
                                seconds=seconds, evidence=STATUS_MEASURED,
                                metrics={"before": before, "after": after,
-                                        "reps_per_set": LIFTS_PER_SET,
+                                        "reps_per_set": lifts_count,
                                         "strength_per_min":
                                             round(verified_gain / seconds * 60)
                                             if seconds else None},
                                rows=rows)
         except Exception as e:
-            return SkillResult("train", False, f"ошибка: {e}",
+            skill_tag = "train" if action_name == "TRAIN_DUMBBELLS" else action_name.lower()
+            return SkillResult(skill_tag, False, f"ошибка: {e}",
                                seconds=time.time() - t0, error=str(e), rows=rows)
 
 

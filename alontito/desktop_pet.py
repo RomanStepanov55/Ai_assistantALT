@@ -61,14 +61,15 @@ MODE_HELP = {
     "still": "спокойный: стоит/сидит на месте, не гуляет и не отвлекается",
 }
 ALL_CLIPS = ("idle", "walk", "sit_idle", "drag_panic", "drag_drop", "activity_coding", "activity_rubik",
-             "roblox_watch_back", "portal_reach_in", "portal_eat_drink", "disintegrate")
+             "roblox_watch_back", "portal_reach_in", "portal_eat_drink", "disintegrate",
+             "run", "tiptoe", "happy", "laugh", "excited", "sad", "cry", "angry", "annoyed", "surprised", "confused", "curious", "shy", "scared", "proud", "facepalm", "shrug", "clap", "dance", "bow", "point", "sneeze", "cough")
 
 DEFAULT_CONFIG: Dict[str, Any] = {
     "enabled": False,            # включён ли 3D-агент (запускать вместе с терминалом)
     "asked": False,              # задан ли вопрос «Хочешь включить живого 3D-ассистента?»
     "mode": "auto",
-    "scale": 0.8,                # 1.0 ≈ персонаж высотой 310 px
-    "fps": 60,
+    "scale": 0.65,               # 1.0 ≈ персонаж высотой 310 px; 0.65 ≈ 200 px — комфортный размер и меньше GPU
+    "fps": 45,                   # верхний предел FPS; спокойные состояния ограничены ниже
     "gpu": "auto",               # "auto" | "software" (если WebGL чёрный/не работает)
     "character": "",             # путь к .glb персонажа (пусто = искать в alontito/assets/3d)
     "portal": "",                # путь к .glb портала
@@ -380,8 +381,15 @@ STATE_VIEW = {            # состояние -> (клип, поворот в �
     "idle": ("idle", 0), "sit": ("sit_idle", 0), "coding": ("activity_coding", 14),
     "rubik": ("activity_rubik", 20), "roblox": ("roblox_watch_back", 180),
 }
-CALM_FPS, ACTIVE_FPS = 30, 60
-FACE_FOR_CLIP = {"walk": 90, "roblox_watch_back": 180, "activity_coding": 14, "activity_rubik": 20}
+CALM_FPS, ACTIVE_FPS = 20, 45   # спокойные состояния 20 FPS, активные до 45 — заметно снижает нагрузку
+FACE_FOR_CLIP = {
+    "walk": 90, "run": 90, "tiptoe": 90,
+    "roblox_watch_back": 180, "activity_coding": 14, "activity_rubik": 20,
+    "happy": 0, "laugh": 0, "excited": 0, "sad": 0, "cry": 0, "angry": 0,
+    "annoyed": 0, "surprised": 0, "confused": 0, "curious": 10, "shy": -8,
+    "scared": 0, "proud": 0, "facepalm": 0, "shrug": 0, "clap": 0, "dance": 0,
+    "bow": 0, "point": 20, "sneeze": 0, "cough": 0,
+}
 
 
 class PetBrain:
@@ -595,13 +603,20 @@ class PetBrain:
         return out
 
     def _choose_idle(self, now: float, ctx: Dict[str, Any], idle_s: float, out: list) -> None:
-        opts: List[tuple] = [("stay", 1.5), ("sit", 5.0 if idle_s >= 60 else 2.5)]
+        # Базовые действия + лёгкие эмоции, чтобы персонаж «жил» и реагировал на простой
+        opts: List[tuple] = [
+            ("stay", 1.8),
+            ("sit", 5.5 if idle_s >= 60 else 2.8),
+            ("emotion", 2.2),  # короткие эмоциональные клипы
+        ]
         if self.mode != "still":
-            opts.append(("walk", 5.0))
-            if idle_s >= 45 or self.mode == "free":
-                opts.append(("rubik", 6.0 if idle_s >= 90 else 3.0))
+            opts.append(("walk", 4.5))
+            if idle_s >= 40 or self.mode == "free":
+                opts.append(("rubik", 5.5 if idle_s >= 90 else 2.8))
             if self.portal_enabled and now >= self.next_portal:
-                opts.append(("portal", 3.0))
+                opts.append(("portal", 2.8))
+            if idle_s >= 25 and self.mode == "free":
+                opts.append(("dance", 1.2))
         pick = self.rng.choices([o[0] for o in opts], weights=[o[1] for o in opts])[0]
         cx = float(ctx.get("x", 0))
         if pick == "walk":
@@ -610,13 +625,39 @@ class PetBrain:
                 gx = self.rng.uniform(lo, hi)
                 if abs(gx - cx) >= 140:
                     break
-            self._start_walk(gx, now, out, after=None, cx=cx)
+            # иногда бег вместо ходьбы
+            if abs(gx - cx) > 280 and self.rng.random() < 0.35:
+                self.state, self.since, self.until, self.after_walk = "walk", now, None, None
+                out += [cmd("face", deg=90 if gx > cx else -90), cmd("play", clip="run"), cmd("walk_to", x=gx, speed=self.cfg.get("walk_speed", 95) * 1.55)]
+            else:
+                self._start_walk(gx, now, out, after=None, cx=cx)
         elif pick == "sit":
             self._enter("sit", now, out)
         elif pick == "rubik":
             self._enter("rubik", now, out)
         elif pick == "portal":
             self._start_portal(now, out)
+        elif pick == "dance":
+            self.state, self.since, self.until = "manual", now, now + 2.6
+            out += [cmd("stop_walk"), cmd("face", deg=0), cmd("play", clip="dance", loop=False)]
+        elif pick == "emotion":
+            # подбор эмоции по длительности простоя и режиму
+            if idle_s >= 120:
+                pool = ["sleepy" if False else "sit_idle", "sad", "shy", "curious", "facepalm", "shrug"]
+            elif idle_s >= 45:
+                pool = ["curious", "happy", "confused", "proud", "point", "clap"]
+            else:
+                pool = ["happy", "curious", "surprised", "shrug", "clap", "excited"]
+            # sit_idle уже есть; убираем несуществующие
+            pool = [c for c in pool if c in ALL_CLIPS or c == "sit_idle"]
+            if not pool:
+                pool = ["happy", "curious", "shrug"]
+            clip = self.rng.choice(pool)
+            if clip == "sit_idle":
+                self._enter("sit", now, out)
+            else:
+                self.state, self.since, self.until = "manual", now, now + 2.0
+                out += [cmd("stop_walk"), cmd("face", deg=FACE_FOR_CLIP.get(clip, 0)), cmd("play", clip=clip, loop=False)]
         else:
             self._enter("idle", now, out)
 

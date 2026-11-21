@@ -218,9 +218,10 @@ class TestBrain(unittest.TestCase):
     def test_fps_hint(self):
         self.boot()
         out = self.b.tick(1.1, self.ctx)
-        self.assertTrue(any(c["type"] == "fps" and c["value"] == 30 for c in out) or self.b._fps == 30)
+        self.assertTrue(any(c["type"] == "fps" and c["value"] == dp.CALM_FPS for c in out) or self.b._fps == dp.CALM_FPS)
         out = self.b.on_event({"ev": "grab"}, 2.0)
-        self.assertTrue(any(c["type"] == "fps" and c["value"] == 60 for c in out))
+        expected_active = min(dp.ACTIVE_FPS, int(self.b.cfg.get("fps", 60)))
+        self.assertTrue(any(c["type"] == "fps" and c["value"] == expected_active for c in out) or self.b._fps == expected_active)
 
 
 class TestServer(unittest.TestCase):

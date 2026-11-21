@@ -387,6 +387,7 @@ class App:
     # ------------------------------------------------------------------ train
 
     def cmd_train(self, args):
+        params = self.brain.development().get("params", {})
         sets = 3
         if args:
             try:
@@ -394,6 +395,11 @@ class App:
             except ValueError:
                 err("количество подходов должно быть числом")
                 return
+        else:
+            sets = params.get("sets", 3)
+
+        action_name = params.get("action", "TRAIN_DUMBBELLS")
+        reps = params.get("reps", 20)
 
         blank()
         res, secs = self._probe()        # no blind training: measure first
@@ -410,7 +416,7 @@ class App:
 
         before = self.health.get("strength")
         info(f"HUD подтверждён за {secs:.1f}s · сила {before:,}")
-        info(f"план: {sets} подход(ов) по 20 повторов, действие TRAIN_DUMBBELLS "
+        info(f"план: {sets} подход(ов) по {reps} повторов, действие {action_name} "
              f"(разрешено: {sorted(ALLOWED_ACTIONS)})")
         blank()
 
@@ -430,22 +436,24 @@ class App:
             sys.stdout.flush()
 
         with Timer() as t:
-            res = self.bot.train(sets=sets, on_event=on_event)
+            res = self.bot.train(sets=sets, on_event=on_event,
+                                 action_name=action_name, reps=reps)
 
         blank()
+        skill_tag = "train" if action_name == "TRAIN_DUMBBELLS" else action_name.lower()
         if res.success:
             ok(res.detail)
-            self.memory.record_skill("train", True, reward=res.reward or 0,
+            self.memory.record_skill(skill_tag, True, reward=res.reward or 0,
                                      seconds=res.seconds,
                                      notes=f"{sets} подходов")
             self.memory.record_run(res.reward, res.seconds,
-                                   note=f"train {sets}x20")
+                                   note=f"{skill_tag} {sets}x{reps}")
         else:
             warn(res.detail)
-            self.memory.record_skill("train", False, reward=0,
+            self.memory.record_skill(skill_tag, False, reward=0,
                                      seconds=res.seconds, error=res.error)
 
-        verdict = self.brain.reflect("train", before,
+        verdict = self.brain.reflect(skill_tag, before,
                                      res.metrics.get("after"), t.seconds)
         blank()
         say(box("РЕФЛЕКСИЯ", [
@@ -560,6 +568,25 @@ class App:
             ], width=term_width(), color="cyan"))
             step("правило: замер до → ровно это изменение → замер после. "
                  "Хуже — откат.")
+        blank()
+
+        cycle = self.brain.development()
+        active = cycle.get("active")
+        lines = [
+            f"закрыто экспериментов: {cycle.get('closed', 0)} "
+            f"(принято {cycle.get('accepted', 0)}, отклонено {cycle.get('rejected', 0)})",
+        ]
+        if active:
+            lines += [
+                f"сейчас: {active.get('change')}",
+                f"попыток замера: {active.get('tries', 0)} · последний вердикт: {active.get('last_verdict') or 'ещё нет'}",
+                "правило: один эксперимент, пока замер не скажет лучше / хуже / без изменений дважды",
+            ]
+        else:
+            lines.append("открытого эксперимента нет — следующее /learn заведёт его, если есть замер")
+        for lesson in cycle.get("lessons") or []:
+            lines.append("урок: " + lesson)
+        say(box("САМОРАЗВИТИЕ", lines, width=term_width(), color="cyan"))
         blank()
 
         questions = self.memory.open_questions()

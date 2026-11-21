@@ -349,6 +349,42 @@ dis_keys = [
 ]
 clip("disintegrate", 1.6, False, dis_keys)
 
+
+# V3 EXTRA CLIPS — stylized procedural animation variations for the current rig.
+import copy as _copy
+def _v3(name,duration,loop,spine=0,head_y=0,head_z=0,arms=18,knee=5,bounce=0):
+    pose=_copy.deepcopy(CLIPS["idle"]["keys"][0]); b=pose["b"]
+    b["Spine01"]=R(("z",spine)); b["Spine02"]=R(("z",spine*.35)); b["Head"]=R(("y",head_y),("z",head_z))
+    b.update(arm("R",arms,arms+8,arms+10)); b.update(arm("L",arms,arms+8,arms+10))
+    b.update(leg("R",2,knee,4)); b.update(leg("L",-2,knee,4))
+    mid=_copy.deepcopy(pose); mid["t"]=duration*.5; mid["hip"][1]+=bounce
+    mid["b"]["Head"]=R(("y",-head_y*.5),("z",-head_z*.5))
+    end=_copy.deepcopy(pose); end["t"]=duration
+    clip(name,duration,loop,[pose,mid,end])
+_v3("run",.46,True,5,8,0,32,20,.035)
+_v3("tiptoe",.75,True,-2,10,0,10,14,.008)
+_v3("happy",1.4,False,6,12,0,35,9,.03)
+_v3("laugh",1.7,False,10,9,7,28,16,.04)
+_v3("excited",1.2,False,8,18,0,45,18,.05)
+_v3("sad",2,True,-10,0,13,8,3)
+_v3("cry",1.6,False,-12,-8,17,9,5)
+_v3("angry",1.25,True,7,-15,-9,20,8)
+_v3("annoyed",1.8,True,1,22,-12,14,3)
+_v3("surprised",1.15,False,-4,24,0,44,13,.02)
+_v3("confused",2,True,-2,24,18,22,3)
+_v3("curious",1.8,True,4,28,-12,20,3)
+_v3("shy",1.7,False,-8,-15,16,25,7)
+_v3("scared",1.1,True,-12,-8,8,42,22)
+_v3("proud",1.5,False,10,6,0,20,2)
+_v3("facepalm",1.5,False,-3,4,12,38,3)
+_v3("shrug",1.3,False,0,8,0,52,3)
+_v3("clap",1,True,3,8,0,34,3,.01)
+_v3("dance",2.3,True,8,15,7,42,18,.035)
+_v3("bow",1.15,False,-22,-5,0,15,5)
+_v3("point",1,False,2,12,-5,30,3)
+_v3("sneeze",1.15,False,-14,0,15,16,10)
+_v3("cough",1.2,False,-12,0,10,14,7)
+
 def main():
     out = Path(sys.argv[1]) if len(sys.argv) > 1 else Path(__file__).resolve().parent.parent / "alontito" / "pet3d" / "animations.json"
     data = {"version": 1, "fps": 30, "driven": [

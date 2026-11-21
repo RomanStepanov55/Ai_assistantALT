@@ -17,6 +17,8 @@ from typing import Dict, List, Optional
 
 from .memory import (MISSING, STATUS_CONTRADICTION, STATUS_HYPOTHESIS,
                      STATUS_MEASURED, STATUS_UNCONFIRMED, Memory)
+from .selfdev import (add_lesson, get_active_params, next_skill_name,
+                      note_verdict, register_proposal, status as selfdev_status)
 
 # A run counts as "the same" as the baseline when it stays inside this band.
 # The HUD rounds strength to two significant digits, which is about +-0.4% at
@@ -118,11 +120,18 @@ class Brain:
             )
 
         if rate is None or rate >= 0.6:
+            preferred = next_skill_name(self.memory.skills()) or "train"
+            params = get_active_params(self.data)
+            cycle = selfdev_status(self.data)
+            extra = ""
+            active = cycle.get("active")
+            if active:
+                extra = f"; открыт эксперимент: {active.get('change')}"
             return Decision(
                 "train",
-                "HUD читается, диалога нет, предыдущие подходы проходили",
+                "HUD читается, диалога нет, предыдущие подходы проходили" + extra,
                 STATUS_MEASURED,
-                {"sets": 3, "action": "TRAIN_DUMBBELLS"},
+                {"sets": params.get("sets", 3), "action": params.get("action", "TRAIN_DUMBBELLS"), "skill": preferred},
             )
 
         return Decision("observe", "нет данных для решения", STATUS_UNCONFIRMED)
@@ -189,6 +198,8 @@ class Brain:
         self.memory.journal("reflection", name=name, verdict=verdict,
                             delta=delta, per_minute=round(per_minute),
                             baseline=base)
+        note_verdict(self.data, verdict, text,
+                     per_minute if delta > 0 else None)
         self.memory.save()
         return Verdict(name, before, after, delta, per_minute, base, verdict,
                        STATUS_MEASURED if delta > 0 else STATUS_UNCONFIRMED,
@@ -246,6 +257,8 @@ class Brain:
         self.memory.add_question(f"Улучшение: {change}", metric, rollback)
         self.memory.journal("proposal", **{k: v for k, v in item.items()
                                            if k != "created"})
+        register_proposal(self.data, item)
+        self.memory.save()
         return item
 
     # ------------------------------------------------------------------
@@ -271,10 +284,19 @@ class Brain:
             "open_questions": len(self.memory.open_questions()),
             "facts": len(self.memory.facts()),
             "contradictions": len(self.memory.facts(STATUS_CONTRADICTION)),
+            "selfdev": selfdev_status(self.data),
         }
 
     def last_runs(self, n: int = 5) -> List[Dict]:
         return list(reversed(self.data.get("runs") or []))[:n]
+
+    def remember_lesson(self, text: str) -> None:
+        """A verified lesson. Duplicates are dropped."""
+        add_lesson(self.data, text)
+        self.memory.save()
+
+    def development(self) -> Dict:
+        return selfdev_status(self.data)
 
 
 # ---------------------------------------------------------------------------

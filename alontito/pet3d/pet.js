@@ -21,7 +21,7 @@ const DEBUG = Q.has('debug');
 if (Q.get('bg')) document.body.style.background = '#' + Q.get('bg');
 const CHAR_URL = Q.get('char') || '/asset/character.glb';
 const PORTAL_URL = Q.get('portal') || '';
-let FPS = Math.max(10, Math.min(144, +(Q.get('fps') || 60)));
+let FPS = Math.max(10, Math.min(60, +(Q.get('fps') || 45)));
 const MAX_DT = Math.max(0.05, Math.min(1, +(Q.get('maxdt') || 0.1)));   // потолок шага времени (тесты на медленном софтверном GL поднимают его)
 
 const post = (msg) => console.log('@@PET@@' + JSON.stringify(msg));
@@ -40,11 +40,11 @@ const PORTAL_YAW = THREE.MathUtils.degToRad(-72);
 const D2R = Math.PI / 180;
 
 const canvas = document.getElementById('c');
-const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true, premultipliedAlpha: true, powerPreference: 'low-power' });
+const renderer = new THREE.WebGLRenderer({ canvas, antialias: Q.get('aa') === '1', alpha: true, premultipliedAlpha: true, powerPreference: 'low-power' });
 renderer.setClearColor(0x000000, 0);
 renderer.outputColorSpace = THREE.SRGBColorSpace;
 renderer.toneMapping = THREE.ACESFilmicToneMapping;
-renderer.toneMappingExposure = 1.2;
+renderer.toneMappingExposure = 1.05;
 
 const scene = new THREE.Scene();
 const camera = new THREE.PerspectiveCamera(20, 1, 0.1, 50);
@@ -52,7 +52,7 @@ let viewW = 1, viewH = 1, pxScale = 1000;
 
 function fit() {
   const w = Math.max(1, canvas.clientWidth), h = Math.max(1, canvas.clientHeight);
-  renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 1.5));
   renderer.setSize(w, h, false);
   viewW = w; viewH = h;
   const visH = STAGE_W / (w / h);
@@ -151,7 +151,7 @@ function updateTweens(dt) {
 const sleep = (s) => tween(s, () => {});
 const easeInOut = (x) => x * x * (3 - 2 * x);
 
-const P_N = 420;
+const P_N = 220;
 const pPos = new Float32Array(P_N * 3), pVel = new Float32Array(P_N * 3), pAge = new Float32Array(P_N).fill(1), pLife = new Float32Array(P_N).fill(1), pSize = new Float32Array(P_N);
 const pGeo = new THREE.BufferGeometry();
 pGeo.setAttribute('position', new THREE.BufferAttribute(pPos, 3));

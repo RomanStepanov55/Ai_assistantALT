@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "total_sessions": 40,
+  "total_sessions": 41,
   "total_playtime_sec": 0,
   "rebirth_history": [],
   "death_history": [],
@@ -32,5 +32,5 @@
     "Пользователь переродился вручную 07.11: сила сбросилась 56.6M -> 63.3K. Бот научился ребёрну."
   ],
   "rebirths_known": 38,
-  "last_session_started": "2026-11-17 20:00:43"
+  "last_session_started": "2026-11-22 18:51:06"
 }

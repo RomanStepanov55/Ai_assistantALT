@@ -6,12 +6,14 @@
     "cooldown": 180.0,
     "dynamic": false,
     "danger_ok": true,
-    "attempts": 2,
-    "successes": 1,
+    "attempts": 0,
+    "successes": 0,
+    "verified_attempts": 0,
+    "verified_successes": 0,
     "ema_reward": 0.0,
-    "avg_cost": 4.23,
-    "last_used": 1794062996.1000018,
-    "last_result": "ok"
+    "avg_cost": 0.0,
+    "last_used": 0.0,
+    "last_result": ""
   },
   "BOSS_FIGHT": {
     "name": "BOSS_FIGHT",
@@ -20,12 +22,14 @@
     "cooldown": 120.0,
     "dynamic": false,
     "danger_ok": true,
-    "attempts": 1,
+    "attempts": 0,
     "successes": 0,
+    "verified_attempts": 0,
+    "verified_successes": 0,
     "ema_reward": 0.0,
-    "avg_cost": 12.12,
-    "last_used": 1794062685.8171062,
-    "last_result": "no result"
+    "avg_cost": 0.0,
+    "last_used": 0.0,
+    "last_result": ""
   },
   "CHECK_QUESTS": {
     "name": "CHECK_QUESTS",
@@ -34,12 +38,14 @@
     "cooldown": 60.0,
     "dynamic": false,
     "danger_ok": true,
-    "attempts": 1,
+    "attempts": 0,
     "successes": 0,
+    "verified_attempts": 0,
+    "verified_successes": 0,
     "ema_reward": 0.0,
-    "avg_cost": 3.22,
-    "last_used": 1794062400.0254996,
-    "last_result": "no result"
+    "avg_cost": 0.0,
+    "last_used": 0.0,
+    "last_result": ""
   },
   "SPIN_WHEEL": {
     "name": "SPIN_WHEEL",
@@ -48,12 +54,14 @@
     "cooldown": 300.0,
     "dynamic": false,
     "danger_ok": true,
-    "attempts": 1,
+    "attempts": 0,
     "successes": 0,
+    "verified_attempts": 0,
+    "verified_successes": 0,
     "ema_reward": 0.0,
-    "avg_cost": 3.25,
-    "last_used": 1794062467.9524179,
-    "last_result": "no result"
+    "avg_cost": 0.0,
+    "last_used": 0.0,
+    "last_result": ""
   },
   "PETS_MAINTENANCE": {
     "name": "PETS_MAINTENANCE",
@@ -62,12 +70,14 @@
     "cooldown": 600.0,
     "dynamic": false,
     "danger_ok": true,
-    "attempts": 2,
+    "attempts": 0,
     "successes": 0,
+    "verified_attempts": 0,
+    "verified_successes": 0,
     "ema_reward": 0.0,
-    "avg_cost": 9.43,
-    "last_used": 1794062702.1380243,
-    "last_result": "no result"
+    "avg_cost": 0.0,
+    "last_used": 0.0,
+    "last_result": ""
   },
   "HATCH_EGG": {
     "name": "HATCH_EGG",
@@ -76,12 +86,14 @@
     "cooldown": 600.0,
     "dynamic": false,
     "danger_ok": true,
-    "attempts": 1,
+    "attempts": 0,
     "successes": 0,
+    "verified_attempts": 0,
+    "verified_successes": 0,
     "ema_reward": 0.0,
-    "avg_cost": 4.59,
-    "last_used": 1794062489.4521992,
-    "last_result": "no result"
+    "avg_cost": 0.0,
+    "last_used": 0.0,
+    "last_result": ""
   },
   "TRAIN_DUMBBELLS": {
     "name": "TRAIN_DUMBBELLS",
@@ -90,12 +102,14 @@
     "cooldown": 0.0,
     "dynamic": false,
     "danger_ok": true,
-    "attempts": 4,
+    "attempts": 0,
     "successes": 0,
+    "verified_attempts": 0,
+    "verified_successes": 0,
     "ema_reward": 0.0,
-    "avg_cost": 7.14,
-    "last_used": 1794063096.7471907,
-    "last_result": "no result"
+    "avg_cost": 0.0,
+    "last_used": 0.0,
+    "last_result": ""
   },
   "TRAIN_PUSHUPS": {
     "name": "TRAIN_PUSHUPS",
@@ -104,12 +118,14 @@
     "cooldown": 0.0,
     "dynamic": false,
     "danger_ok": true,
-    "attempts": 4,
+    "attempts": 0,
     "successes": 0,
+    "verified_attempts": 0,
+    "verified_successes": 0,
     "ema_reward": 0.0,
-    "avg_cost": 7.3,
-    "last_used": 1794063118.9697626,
-    "last_result": "no result"
+    "avg_cost": 0.0,
+    "last_used": 0.0,
+    "last_result": ""
   },
   "TRAIN_SITUPS": {
     "name": "TRAIN_SITUPS",
@@ -118,12 +134,14 @@
     "cooldown": 0.0,
     "dynamic": false,
     "danger_ok": true,
-    "attempts": 4,
+    "attempts": 0,
     "successes": 0,
+    "verified_attempts": 0,
+    "verified_successes": 0,
     "ema_reward": 0.0,
-    "avg_cost": 9.1,
-    "last_used": 1794063174.5938509,
-    "last_result": "no result"
+    "avg_cost": 0.0,
+    "last_used": 0.0,
+    "last_result": ""
   },
   "TRAIN_MACHINE": {
     "name": "TRAIN_MACHINE",
@@ -132,12 +150,14 @@
     "cooldown": 0.0,
     "dynamic": false,
     "danger_ok": true,
-    "attempts": 4,
+    "attempts": 0,
     "successes": 0,
+    "verified_attempts": 0,
+    "verified_successes": 0,
     "ema_reward": 0.0,
-    "avg_cost": 15.27,
-    "last_used": 1794063198.4312205,
-    "last_result": "no result"
+    "avg_cost": 0.0,
+    "last_used": 0.0,
+    "last_result": ""
   },
   "TRAIN_AGILITY": {
     "name": "TRAIN_AGILITY",
@@ -146,12 +166,14 @@
     "cooldown": 0.0,
     "dynamic": false,
     "danger_ok": true,
-    "attempts": 4,
+    "attempts": 0,
     "successes": 0,
+    "verified_attempts": 0,
+    "verified_successes": 0,
     "ema_reward": 0.0,
-    "avg_cost": 6.41,
-    "last_used": 1794063216.1727943,
-    "last_result": "'AgentActions' object has no attribute 'train_agility_run'"
+    "avg_cost": 0.0,
+    "last_used": 0.0,
+    "last_result": ""
   },
   "DISCOVER": {
     "name": "DISCOVER",
@@ -160,12 +182,14 @@
     "cooldown": 300.0,
     "dynamic": false,
     "danger_ok": true,
-    "attempts": 1,
+    "attempts": 0,
     "successes": 0,
+    "verified_attempts": 0,
+    "verified_successes": 0,
     "ema_reward": 0.0,
-    "avg_cost": 3.08,
-    "last_used": 1794062562.5309825,
-    "last_result": "no result"
+    "avg_cost": 0.0,
+    "last_used": 0.0,
+    "last_result": ""
   },
   "DAILY_REWARDS": {
     "name": "DAILY_REWARDS",
@@ -174,12 +198,14 @@
     "cooldown": 1800.0,
     "dynamic": false,
     "danger_ok": true,
-    "attempts": 1,
+    "attempts": 0,
     "successes": 0,
+    "verified_attempts": 0,
+    "verified_successes": 0,
     "ema_reward": 0.0,
-    "avg_cost": 1.1,
-    "last_used": 1794062551.9658015,
-    "last_result": "name 'CYRILLIC_MAP' is not defined"
+    "avg_cost": 0.0,
+    "last_used": 0.0,
+    "last_result": ""
   },
   "REBIRTH": {
     "name": "REBIRTH",
@@ -190,6 +216,8 @@
     "danger_ok": true,
     "attempts": 0,
     "successes": 0,
+    "verified_attempts": 0,
+    "verified_successes": 0,
     "ema_reward": 0.0,
     "avg_cost": 0.0,
     "last_used": 0.0,

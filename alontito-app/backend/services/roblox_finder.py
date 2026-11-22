@@ -1,4 +1,4 @@
-"""Надёжный поиск/запуск Roblox: обычный, Store, переименованный/пиратский клиент."""
+"""Надёжный поиск/запуск Roblox + фокус. Никакого ввода без игры."""
 from __future__ import annotations
 import csv
 import ctypes
@@ -35,14 +35,14 @@ def _windows():
     proc = ctypes.WINFUNCTYPE(ctypes.c_bool, ctypes.c_void_p, ctypes.c_void_p)
 
     def cb(h, l):
-        if u.IsWindowVisible(h):
-            n = u.GetWindowTextLengthW(h)
-            if n:
-                buf = ctypes.create_unicode_buffer(n + 1)
-                u.GetWindowTextW(h, buf, n + 1)
-                pid = ctypes.c_ulong()
-                u.GetWindowThreadProcessId(h, ctypes.byref(pid))
-                res.append({"title": buf.value, "pid": pid.value, "hwnd": int(h)})
+        n = u.GetWindowTextLengthW(h)
+        if n:
+            buf = ctypes.create_unicode_buffer(n + 1)
+            u.GetWindowTextW(h, buf, n + 1)
+            pid = ctypes.c_ulong()
+            u.GetWindowThreadProcessId(h, ctypes.byref(pid))
+            res.append({"title": buf.value, "pid": pid.value, "hwnd": int(h),
+                        "visible": bool(u.IsWindowVisible(h))})
         return True
 
     try:
@@ -62,19 +62,51 @@ def find_target(hint_title=None, hint_process=None):
     if ht:
         w = next((x for x in wins if ht in x["title"].lower()), None)
     if not w:
-        w = next((x for x in wins if "roblox" in x["title"].lower() or "muscle" in x["title"].lower()), None)
+        w = next((x for x in wins if x["visible"] and
+                  ("roblox" in x["title"].lower() or "muscle" in x["title"].lower())), None)
     pr = None
     if hp:
         pr = next(((e, p) for e, p in procs if hp in e.lower()), None)
     if not pr:
         pr = next(((e, p) for e, p in procs if "roblox" in e.lower()), None)
     if not w and pr:
-        w = next((x for x in wins if x["pid"] == pr[1]), None)
+        w = next((x for x in wins if x["pid"] == pr[1] and x["visible"]), None)
     if not w and not pr:
         return None
     pid = w["pid"] if w else pr[1]
     exe = pid2exe.get(pid, pr[0] if pr else "")
-    return {"title": w["title"] if w else "", "pid": pid, "exe": exe, "hwnd": w["hwnd"] if w else 0}
+    return {"title": w["title"] if w else "", "pid": pid, "exe": exe,
+            "hwnd": w["hwnd"] if w else 0}
+
+
+def focus(hwnd):
+    if sys.platform != "win32" or not hwnd:
+        return False
+    u = ctypes.windll.user32
+    try:
+        u.ShowWindow(hwnd, 9)  # SW_RESTORE
+        u.SetForegroundWindow(hwnd)
+        return True
+    except Exception:
+        return False
+
+
+def is_foreground(hwnd):
+    if sys.platform != "win32" or not hwnd:
+        return False
+    try:
+        return ctypes.windll.user32.GetForegroundWindow() == hwnd
+    except Exception:
+        return False
+
+
+def window_alive(hwnd):
+    if sys.platform != "win32" or not hwnd:
+        return False
+    try:
+        return bool(ctypes.windll.user32.IsWindow(hwnd))
+    except Exception:
+        return False
 
 
 def launch_attempts():

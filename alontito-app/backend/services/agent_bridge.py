@@ -1,4 +1,4 @@
-"""Мост управления агентом: запуск agent_boot.py (авто-запуск игры) и остановка дерева процессов."""
+"""Мост управления агентом с подсказками цели и остановкой дерева процессов."""
 from __future__ import annotations
 import os
 import subprocess
@@ -30,7 +30,7 @@ class AgentBridge:
     def is_running(self):
         return self._proc is not None and self._proc.poll() is None
 
-    def start(self):
+    def start(self, hint_title=None, hint_process=None):
         with self._lock:
             if self.is_running():
                 return {"ok": False, "error": "Агент уже запущен"}
@@ -40,12 +40,15 @@ class AgentBridge:
             env = os.environ.copy()
             env["PYTHONUNBUFFERED"] = "1"
             env["PYTHONIOENCODING"] = "utf-8"
+            if hint_title:
+                env["ALONTITO_HINT_TITLE"] = hint_title
+            if hint_process:
+                env["ALONTITO_HINT_PROCESS"] = hint_process
             flags = subprocess.CREATE_NEW_PROCESS_GROUP if sys.platform == "win32" else 0
             self._proc = subprocess.Popen(
                 [sys.executable, "-u", str(BOOT_ENTRY)],
                 cwd=str(PROJECT_ROOT),
-                stdout=subprocess.PIPE,
-                stderr=subprocess.STDOUT,
+                stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
                 text=True, encoding="utf-8", errors="replace",
                 creationflags=flags, env=env,
             )
@@ -74,13 +77,9 @@ class AgentBridge:
     def status(self):
         with self._lock:
             running = self.is_running()
-            return {
-                "running": running,
-                "pid": self._proc.pid if self._proc else None,
-                "uptime_s": round(time.time() - self._started_at, 1) if running and self._started_at else 0,
-                "exit_code": self._proc.poll() if self._proc else None,
-                "last_exit": self._last_exit,
-            }
+            return {"running": running, "pid": self._proc.pid if self._proc else None,
+                    "uptime_s": round(time.time() - self._started_at, 1) if running and self._started_at else 0,
+                    "exit_code": self._proc.poll() if self._proc else None, "last_exit": self._last_exit}
 
     def logs(self, limit: int = 100):
         return list(self._logs)[-limit:]

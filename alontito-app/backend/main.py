@@ -1,4 +1,4 @@
-"""Alontito Control Center — FastAPI бэкенд (Фаза 1.4)."""
+"""Alontito Control Center — FastAPI бэкенд (Фаза 1.5)."""
 import sys
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
@@ -14,14 +14,13 @@ from backend.routers.agent import router as agent_router
 from backend.routers.telemetry import router as telemetry_router
 from backend.routers.chat import router as chat_router
 from backend.routers.meta import router as meta_router
+from backend.routers.engine import router as engine_router
 from backend.services.agent_bridge import bridge
 from backend.services import telemetry_reader as tr
 
-app = FastAPI(title="Alontito Control Center", version="0.4.0")
-
+app = FastAPI(title="Alontito Control Center", version="0.5.0")
 app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])
-
-for r in (agent_router, telemetry_router, chat_router, meta_router):
+for r in (agent_router, telemetry_router, chat_router, meta_router, engine_router):
     app.include_router(r)
 
 FRONTEND_DIR = APP_DIR / "frontend"
@@ -35,7 +34,7 @@ def root():
 
 @app.get("/api/health")
 def health():
-    return {"ok": True, "service": "alontito-backend", "version": "0.4.0"}
+    return {"ok": True, "service": "alontito-backend", "version": "0.5.0"}
 
 
 @app.websocket("/ws/agent")

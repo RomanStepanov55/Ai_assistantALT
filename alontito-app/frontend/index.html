@@ -31,7 +31,7 @@
         <button class="btn tiny" id="r-export">PNG</button>
       </div>
     </div>
-    <div class="sidebar-foot">v0.4 · local</div>
+    <div class="sidebar-foot">v0.5 · local</div>
   </aside>
   <main class="main">
     <header class="topbar">
@@ -73,13 +73,13 @@
       </div>
       <div class="panel">
         <div class="panel-head">🧠 Поток агента <span class="hint">вывод в реальном времени</span></div>
-        <div id="console" class="console"><div class="empty">Агент остановлен. Нажми «▶ Запустить» — я сам открою Roblox и игру.</div></div>
+        <div id="console" class="console"><div class="empty">Агент остановлен. Нажми «▶ Запустить» — я сам найду и открою Roblox.</div></div>
       </div>
     </section>
 
     <section id="view-chat" class="view">
       <div class="panel chat-panel">
-        <div class="panel-head">💬 Чат с Алонтито <span class="hint" id="chat-source">источник: —</span></div>
+        <div class="panel-head">💬 Чат с Алонтито <span class="hint" id="chat-source">источник: local</span></div>
         <div id="chat-log" class="chat-log"></div>
         <div class="chat-input">
           <input id="chat-text" type="text" placeholder="Спроси про статус, силу, уроки или запуск...">
@@ -89,6 +89,20 @@
     </section>
 
     <section id="view-settings" class="view">
+      <div class="grid2">
+        <div class="panel">
+          <div class="panel-head">🎯 Цель Roblox <span class="hint">для переименованного/пиратского</span></div>
+          <label class="ctl">Название окна<input id="t-title" type="text" placeholder="например Muscle Legends или своё"></label>
+          <label class="ctl">Имя exe<input id="t-proc" type="text" placeholder="например RobloxPlayerBeta.exe или своё"></label>
+          <div class="rail-btns"><button class="btn tiny" id="t-find">Найти окно</button><button class="btn tiny" id="t-save">Сохранить</button></div>
+          <div id="t-result" class="learning dim">—</div>
+        </div>
+        <div class="panel">
+          <div class="panel-head">🗣 Языковой движок <span class="hint">Ollama = локальная речь</span></div>
+          <div id="engine" class="learning dim">—</div>
+          <button class="btn tiny" id="e-check">Проверить движок</button>
+        </div>
+      </div>
       <div class="grid2">
         <div class="panel">
           <div class="panel-head">🛡 Безопасность проекта <span class="hint">только чтение</span></div>

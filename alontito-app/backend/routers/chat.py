@@ -1,4 +1,4 @@
-"""Чат с Алонтито: локальная Ollama, при её отсутствии — честный локальный ответчик."""
+"""Чат с Алонтито: всегда отвечает локально; Ollama лишь расширяет свободную речь."""
 from __future__ import annotations
 import json
 import urllib.request
@@ -6,7 +6,7 @@ import urllib.request
 from fastapi import APIRouter
 from pydantic import BaseModel
 
-from backend.config import OLLAMA_URL, PROJECT_ROOT
+from backend.config import OLLAMA_URL
 from backend.services.agent_bridge import bridge
 from backend.services import telemetry_reader as tr
 
@@ -35,21 +35,27 @@ def _local_reply(text: str) -> str:
     t = text.lower()
     st = bridge.status()
     last = tr.last_sample()
+    learn = tr.learning()
+    if any(k in t for k in ("привет", "здаров", "hello")):
+        return "Привет! Я Алонтито — твой локальный агент. Я всегда на связи даже без Ollama. Спроси про статус, силу, уроки или запуск."
     if any(k in t for k in ("статус", "состоян", "как ты")):
-        s = "работаю" if st["running"] else "остановлен"
+        s = "тренируюсь" if st["running"] else "отдыхаю"
         extra = f" Последний замер: сила {last['strength']:,} ({last['ts']})." if last else ""
-        return f"Я {s}.{extra} Нажми «Запустить», чтобы я начал тренировку."
+        return f"Сейчас я {s}.{extra}"
     if any(k in t for k in ("сила", "прогресс", "темп")):
         if last:
-            return f"По архиву telemetry.log: сила {last['strength']:,}, темп +{last['rate']}/мин, ребёрнов {last['rebirths']}. Это последний записанный замер ({last['ts']}), не live."
-        return "Замеров пока нет. Запусти агента, чтобы я начал собирать телеметрию."
-    if any(k in t for k in ("урок", "научил", "памят")):
-        ins = tr.learning().get("insights") or []
-        return "Мои уроки: " + ("; ".join(ins[-3:]) if ins else "пока пусто.")
-    if any(k in t for k in ("запуст", "старт", "игра")):
-        return "Кнопка «Запустить» сама откроет Roblox и Muscle Legends, затем начнёт цикл. Следи за панелью «Поток агента»."
-    return ("Я Алонтито, локальный агент. Ollama сейчас недоступна, поэтому отвечаю встроенным ответчиком. "
-            "Спроси про статус, силу, уроки или запуск — либо включи Ollama для полноценного диалога.")
+            return f"По архиву: сила {last['strength']:,}, темп +{last['rate']}/мин, ребёрнов {last['rebirths']} (замер {last['ts']}). Запусти меня — соберу свежие данные."
+        return "Замеров пока нет. Нажми «Запустить» — я открою игру и начну собирать телеметрию."
+    if any(k in t for k in ("урок", "научил", "памят", "знаешь")):
+        ins = learn.get("insights") or []
+        return "Вот что я усвоил: " + ("; ".join(ins[-3:]) if ins else "пока мало уроков, но я учусь на каждом замере.")
+    if any(k in t for k in ("запуст", "старт", "игра", "роблокс")):
+        return "Кнопка «Запустить» сама найдёт или откроет Roblox (даже переименованный) и начнёт цикл. Следи за «Поток агента»."
+    if any(k in t for k in ("кто ты", "оллама", "ollama", "ии")):
+        return ("Я Алонтито — твой собственный агент: моя память, навыки и решения. Ollama — лишь локальный движок речи; "
+                "без неё я отвечаю встроенным ответчиком, с ней — свободнее. Ничего не уходит в облако.")
+    return ("Я Алонтито, на связи локально. Могу рассказать про статус, силу, уроки и запуск. "
+            "Для свободной беседы включи Ollama — но я остаюсь твоим агентом, а не чужим.")
 
 
 @router.post("/chat")

@@ -177,3 +177,12 @@ def get_rebirth_requirement(rebirth_count: int) -> int:
     if rebirth_count <= 0:
         return base
     return int(base * (1.5 ** rebirth_count))
+
+# --- Alontito Control Center: target override ---
+import os as _os
+_t = _os.environ.get("ALONTITO_ROBLOX_TITLE")
+if _t:
+    WINDOW_TITLE_SUBSTRING = _t
+_p = _os.environ.get("ALONTITO_ROBLOX_PROCESS")
+if _p:
+    PROCESS_NAMES = [_p] + [n for n in PROCESS_NAMES if n != _p]

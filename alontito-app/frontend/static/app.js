@@ -167,3 +167,25 @@ window.addEventListener("resize",drawChart);
 applyAccent("#b070ff"); applyGlow(14);
 bindRail(); bindNav(); connect(); pollChart(); pollLearning(); restartPoll();
 pushMsg("bot","Привет! Я Алонтито. Спроси про статус, силу, уроки или запуск — или включи Ollama для полноценного диалога.","local");
+// --- Phase 1.5: target override + engine status ---
+function loadTarget(){ try{ const s=JSON.parse(localStorage.getItem("alontito_target")||"{}");
+  $("t-title").value=s.title||""; $("t-proc").value=s.process||""; }catch(e){} }
+function saveTarget(){ localStorage.setItem("alontito_target",JSON.stringify({title:$("t-title").value,process:$("t-proc").value}));
+  $("t-result").textContent="Сохранено. Будет использовано при запуске."; }
+async function findTarget(){ const q=new URLSearchParams(); if($("t-title").value)q.set("title",$("t-title").value);
+  if($("t-proc").value)q.set("process",$("t-proc").value);
+  try{ const r=await fetch("/api/agent/discover?"+q.toString()); const d=await r.json();
+    $("t-result").innerHTML = d.target? ("Найдено: "+esc(d.target.title||"?")+" · pid "+d.target.pid+" · "+esc(d.target.exe)) : "Окно не найдено. Запусти игру или укажи название выше.";
+  }catch(e){ $("t-result").textContent="Ошибка запроса."; } }
+async function loadEngine(){ try{ const r=await fetch("/api/engine"); const d=await r.json();
+  $("engine").innerHTML = d.connected? ('<div class="learn-sub">Подключено</div><ul class="lessons">'+
+    d.models.map(m=>"<li>"+esc(m)+"</li>").join("")+"</ul>") : '<div class="dim">'+esc(d.note)+"</div>";
+  }catch(e){} }
+loadTarget();
+$("t-save").onclick=saveTarget;
+$("t-find").onclick=findTarget;
+$("e-check").onclick=loadEngine;
+$("btn-start").onclick=async()=>{ $("btn-start").disabled=true; blip(660);
+  const s=JSON.parse(localStorage.getItem("alontito_target")||"{}");
+  try{ await fetch("/api/agent/start",{method:"POST",headers:{"Content-Type":"application/json"},
+    body:JSON.stringify({title:s.title||null,process:s.process||null})}); }catch(e){} };

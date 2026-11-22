@@ -1,79 +1,45 @@
-"""Загрузчик агента: находит/запускает Roblox + Muscle Legends, затем main.py.
-
-Все строки печатаются с flush, чтобы панель «Поток агента» видела этапы сразу.
-"""
-import ctypes
+"""Загрузчик: находит/запускает Roblox (любой клиент), передаёт цель в main.py."""
 import os
 import subprocess
 import sys
-import time
-import webbrowser
 from pathlib import Path
 
-ROOT = Path(__file__).resolve().parents[1]
-sys.path.insert(0, str(ROOT))
-from backend.config import PLACE_ID, ROBLOX_URI  # noqa: E402
+APP = Path(__file__).resolve().parent
+ROOT = APP.parent
+sys.path.insert(0, str(APP))
+from backend.services import roblox_finder as rf  # noqa: E402
 
 
 def log(m):
     print("[BOOT] " + m, flush=True)
 
 
-def roblox_hwnd():
-    if sys.platform != "win32":
-        return None
-    u = ctypes.windll.user32
-    found = []
-    proc = ctypes.WINFUNCTYPE(ctypes.c_bool, ctypes.c_void_p, ctypes.c_void_p)
-
-    def cb(h, l):
-        n = u.GetWindowTextLengthW(h)
-        if n:
-            buf = ctypes.create_unicode_buffer(n + 1)
-            u.GetWindowTextW(h, buf, n + 1)
-            if "Roblox" in buf.value:
-                found.append(h)
-        return True
-
-    try:
-        u.EnumWindows(proc(cb), 0)
-    except Exception:
-        return None
-    return found[0] if found else None
-
-
-def launch_game():
-    log("Roblox не найден — запускаю Muscle Legends (placeId %d)..." % PLACE_ID)
-    try:
-        os.startfile(ROBLOX_URI)  # noqa: S606 (Windows protocol)
-        return True
-    except Exception as e:
-        log("Протокол roblox:// не сработал (%s) — открываю网页 через браузер." % e)
-        try:
-            webbrowser.open("https://www.roblox.com/games/%d/" % PLACE_ID)
-            return True
-        except Exception as e2:
-            log("Не удалось открыть игру: %s" % e2)
-            return False
-
-
 def main():
-    log("Этап 1/3 · проверка окна Roblox...")
-    if roblox_hwnd():
-        log("Окно Roblox уже открыто.")
+    hint_t = os.environ.get("ALONTITO_HINT_TITLE") or None
+    hint_p = os.environ.get("ALONTITO_HINT_PROCESS") or None
+    log("Этап 1/3 · поиск Roblox (обычный / Store / переименованный)...")
+    target = rf.find_target(hint_t, hint_p)
+    if target:
+        log("Найден: %s (pid %s, exe %s)" % (target["title"] or "?", target["pid"], target["exe"]))
     else:
-        launch_game()
-        log("Этап 2/3 · ожидаю появления окна Roblox (до 90 с)...")
-        t0 = time.time()
-        while time.time() - t0 < 90:
-            if roblox_hwnd():
-                log("Окно Roblox появилось (%.1f с)." % (time.time() - t0))
-                break
-            time.sleep(2)
+        log("Не найден — запускаю игру...")
+        for a in rf.launch_attempts():
+            log("Запуск: " + a)
+        log("Этап 2/3 · ожидаю окно (до 90 с)...")
+        target = rf.wait_for(90, hint_t, hint_p)
+        if target:
+            log("Окно появилось: %s" % (target["title"] or "?"))
         else:
-            log("Окно так и не появилось — передаю управление main.py (он сообщит причину).")
+            log("Окно не найдено — передаю main.py (сообщит причину).")
+    env = os.environ.copy()
+    if target:
+        if target["title"]:
+            env["ALONTITO_ROBLOX_TITLE"] = target["title"]
+        if target["exe"]:
+            env["ALONTITO_ROBLOX_PROCESS"] = target["exe"]
+        env["ALONTITO_ROBLOX_PID"] = str(target["pid"])
     log("Этап 3/3 · запускаю автономный цикл main.py...")
-    rc = subprocess.call([sys.executable, "-u", str(ROOT / "main.py")])
+    rc = subprocess.call([sys.executable, "-u", str(ROOT / "main.py")], env=env)
     log("main.py завершился с кодом %s." % rc)
     return rc
 

@@ -17,7 +17,7 @@
       <button class="nav-btn" data-view="soon"><span class="ico">📅</span>План</button>
       <button class="nav-btn" data-view="soon"><span class="ico">⚙</span>Настройки</button>
     </nav>
-    <div class="sidebar-foot">v0.2 · local</div>
+    <div class="sidebar-foot">v0.3 · local</div>
   </aside>
   <main class="main">
     <header class="topbar">
@@ -35,11 +35,26 @@
         <div class="card"><div class="card-label">Время работы</div><div id="c-uptime" class="card-value">—</div></div>
         <div class="card"><div class="card-label">Сообщений</div><div id="c-logs" class="card-value">0</div></div>
       </div>
+      <div class="cards">
+        <div class="card"><div class="card-label">Сила</div><div id="c-str" class="card-value">—</div></div>
+        <div class="card"><div class="card-label">Темп /мин</div><div id="c-rate" class="card-value">—</div></div>
+        <div class="card"><div class="card-label">Gems</div><div id="c-gems" class="card-value">—</div></div>
+        <div class="card"><div class="card-label">Rebirths</div><div id="c-reb" class="card-value">—</div></div>
+      </div>
+      <div class="grid2">
+        <div class="panel">
+          <div class="panel-head">📈 Прогресс силы <span class="hint">telemetry.log · 5s</span></div>
+          <svg id="chart" class="chart"></svg>
+        </div>
+        <div class="panel">
+          <div class="panel-head">🧠 Саморазвитие <span class="hint">UCB · уроки</span></div>
+          <div id="learning" class="learning"><div class="dim">загрузка...</div></div>
+        </div>
+      </div>
       <div class="panel">
         <div class="panel-head">🧠 Поток агента <span class="hint">вывод main.py · realtime</span></div>
         <div id="console" class="console"><div class="empty">Агент остановлен. Нажми «▶ Запустить».</div></div>
       </div>
-      <div class="panel placeholder">📊 График прогресса и этапы обдумывания — Фаза 1.3 (телеметрия)</div>
     </section>
     <section id="view-soon" class="view">
       <div class="soon">🚧 Раздел появится на следующих фазах</div>

@@ -1,4 +1,4 @@
-"""Alontito Control Center — FastAPI бэкенд (Фаза 1.2)."""
+"""Alontito Control Center — FastAPI бэкенд (Фаза 1.3)."""
 import sys
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
@@ -11,9 +11,11 @@ from fastapi.staticfiles import StaticFiles
 
 from backend.config import HOST, PORT, APP_DIR
 from backend.routers.agent import router as agent_router
+from backend.routers.telemetry import router as telemetry_router
 from backend.services.agent_bridge import bridge
+from backend.services import telemetry_reader as tr
 
-app = FastAPI(title="Alontito Control Center", version="0.2.0")
+app = FastAPI(title="Alontito Control Center", version="0.3.0")
 
 app.add_middleware(
     CORSMiddleware,
@@ -23,6 +25,7 @@ app.add_middleware(
 )
 
 app.include_router(agent_router)
+app.include_router(telemetry_router)
 
 FRONTEND_DIR = APP_DIR / "frontend"
 app.mount("/static", StaticFiles(directory=str(FRONTEND_DIR / "static")), name="static")
@@ -35,7 +38,7 @@ def root():
 
 @app.get("/api/health")
 def health():
-    return {"ok": True, "service": "alontito-backend", "version": "0.2.0"}
+    return {"ok": True, "service": "alontito-backend", "version": "0.3.0"}
 
 
 @app.websocket("/ws/agent")
@@ -43,7 +46,11 @@ async def ws_agent(ws: WebSocket):
     await ws.accept()
     try:
         while True:
-            await ws.send_json({"status": bridge.status(), "logs": bridge.logs(30)})
+            await ws.send_json({
+                "status": bridge.status(),
+                "logs": bridge.logs(30),
+                "tele": tr.last_sample(),
+            })
             await asyncio.sleep(1.0)
     except WebSocketDisconnect:
         pass

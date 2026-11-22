@@ -1,257 +1,346 @@
 {
-  "agent": "SkillBotRobloxMuscle",
-  "game": {
-    "name_official": "[👽] Muscle Legends",
-    "place_id": 3623096087,
-    "universe_id": 1268927906,
-    "creator": "Muscle Legends Studio (group 874427664)",
-    "identity_rule": "Игра определяется по Place ID, а не по названию/иконке"
+ "agent": "SkillBotRobloxMuscle",
+ "game": {
+  "name_official": "[👽] Muscle Legends",
+  "place_id": 3623096087,
+  "universe_id": 1268927906,
+  "creator": "Muscle Legends Studio (group 874427664)",
+  "identity_rule": "Игра определяется по Place ID, а не по названию/иконке"
+ },
+ "version": "1.5",
+ "updated": "2026-11-22",
+ "mode": "Г (ИСПОЛНИТЕЛЬ)",
+ "capabilities": {
+  "web_research": true,
+  "official_roblox_api": true,
+  "screenshot_analysis": true,
+  "game_capture": true,
+  "input_control": true,
+  "persistent_memory": true,
+  "local_ocr": true,
+  "paid_services": false
+ },
+ "perception": {
+  "engine": "vision/eye.py",
+  "read_only": true,
+  "corpus_frames": 48,
+  "scan_v13": {
+   "both_readable": 39,
+   "partial": 1,
+   "unreadable": 0,
+   "no_game_hud": 8,
+   "elapsed_sec": 23.3,
+   "frame_is_game_policy": "только бейджи, найденные в текущем кадре (сохранённая раскладка не доказательство)"
   },
-  "version": "1.5",
-  "updated": "2026-11-21",
-  "mode": "Г (ИСПОЛНИТЕЛЬ)",
-  "capabilities": {
-    "web_research": true,
-    "official_roblox_api": true,
-    "screenshot_analysis": true,
-    "game_capture": true,
-    "input_control": true,
-    "persistent_memory": true,
-    "local_ocr": true,
-    "paid_services": false
-  },
-  "perception": {
-    "engine": "vision/eye.py",
-    "read_only": true,
-    "corpus_frames": 48,
-    "scan_v13": {
-      "both_readable": 39,
-      "partial": 1,
-      "unreadable": 0,
-      "no_game_hud": 8,
-      "elapsed_sec": 23.3,
-      "frame_is_game_policy": "только бейджи, найденные в текущем кадре (сохранённая раскладка не доказательство)"
-    },
-    "live_session_2026_11_16": {
-      "window": {
-        "pid": 28160,
-        "hwnd": 59705596,
-        "title": "Roblox",
-        "client_rect": [
-          0,
-          34,
-          1920,
-          1046
-        ],
-        "dpi": "150%"
-      },
-      "health_verdict": "ok",
-      "strength": {
-        "text": "3.11M",
-        "value": 3110000,
-        "confidence": 0.957,
-        "source": "layout/ink_otsu"
-      },
-      "gems": {
-        "text": "16.1M",
-        "value": 16100000,
-        "confidence": 0.967,
-        "source": "anchored/gems_auto"
-      },
-      "repeatability": "3 независимых кадра подряд дали одинаковые значения",
-      "timing_ms": {
-        "capture": 234.5,
-        "read": 835.0,
-        "deep_read": 7070.6
-      },
-      "modal_open": false,
-      "frames": [
-        "debug_frames/live_v13_raw3.png",
-        "debug_frames/live_v13_annotated.png"
-      ]
-    },
-    "known_limits": [
-      "гемы на синем-на-синем не находятся цветовой локацией — используется привязка к бейджу силы",
-      "модалки затемняют сцену — порог бинаризации адаптивный (Otsu)",
-      "HUD округляет до 2 значащих цифр: погрешность до ~0.4%",
-      "кадр чужого окна честно помечается как 'без HUD игры'",
-      "диалог без текстовых кнопок (только иконка X) не распознаётся — сознательный отказ от слепого клика",
-      "одиночное чтение может потерять ведущую цифру; гемы теперь требуют двух согласованных кадров (E-017)",
-      "окно 6 повторов упирается в округление HUD: темп измеряется окном 20 повторов"
+  "live_session_2026_11_16": {
+   "window": {
+    "pid": 28160,
+    "hwnd": 59705596,
+    "title": "Roblox",
+    "client_rect": [
+     0,
+     34,
+     1920,
+     1046
     ],
-    "live_session_2026_11_17": {
-      "frames_with_strength_plate": "42/42",
-      "strength_start": 3120000,
-      "strength_end": 5390000,
-      "gems": 16100000,
-      "gems_spent": 0,
-      "modal_gate": "диалог доказывается управляющим словом и HUD в том же кадре",
-      "frame_gate": "плашка бейджа должна содержать чернила цифр (E-016)",
-      "evidence": "ИЗМЕРЕНО В ЭКСПЕРИМЕНТЕ"
-    }
+    "dpi": "150%"
+   },
+   "health_verdict": "ok",
+   "strength": {
+    "text": "3.11M",
+    "value": 3110000,
+    "confidence": 0.957,
+    "source": "layout/ink_otsu"
+   },
+   "gems": {
+    "text": "16.1M",
+    "value": 16100000,
+    "confidence": 0.967,
+    "source": "anchored/gems_auto"
+   },
+   "repeatability": "3 независимых кадра подряд дали одинаковые значения",
+   "timing_ms": {
+    "capture": 234.5,
+    "read": 835.0,
+    "deep_read": 7070.6
+   },
+   "modal_open": false,
+   "frames": [
+    "debug_frames/live_v13_raw3.png",
+    "debug_frames/live_v13_annotated.png"
+   ]
   },
-  "knowledge": {
-    "registry": "knowledge/sources.csv",
-    "files": [
-      "game_identity.md",
-      "mechanics.md",
-      "rebirth.md",
-      "events.md",
-      "strategies.md",
-      "unknowns.md",
-      "session_log.md",
-      "sources.csv",
-      "locations.csv",
-      "equipment.csv",
-      "pets.csv",
-      "auras.csv",
-      "economy.csv",
-      "pvp.csv",
-      "bosses.csv",
-      "codes.csv",
-      "gamepasses.csv",
-      "experiments.csv"
-    ],
-    "verified_official": [
-      "Place ID 3623096087 / Universe 1268927906",
-      "Muscle Legends Studio (874427664)",
-      "коды megalift50, speedy50, spacegems50, ultimate250 опубликованы",
-      "Premium benefits (x2 Strength, +2 spins, x2 chests, +1 pet slot)",
-      "group chest и +1 daily spin"
-    ],
-    "verified_interface": [
-      "HUD: сила (жёлтый бейдж) и второй счётчик (гемы синие / конфеты зелёные)",
-      "меню: STATS, REBIRTH, STORE, ITEMS, TRADE, INVITE, PACKS, SPOOKY PASS, QUESTS, CLANS, MOVES, CODES, ULTIMATE, BENEFITS, WHEEL, SETTINGS",
-      "хотбар из 10 упражнений",
-      "колонки игроков: Strength / Brawls / Kills / Rebirths",
-      "баннер арены Brawl с таймером"
-    ]
-  },
-  "safety": {
-    "no_real_money": true,
-    "no_gem_or_item_spend_without_approval": true,
-    "no_trades": true,
-    "no_esc": true,
-    "no_tab_leaderboard": true,
-    "no_exploits": true,
-    "no_rebirth_click": true,
-    "enforcement_levels": 3
-  },
-  "metrics": {
-    "live_game_session_this_version": true,
-    "strength_per_min": 155998,
-    "strength_per_min_source": "EXP-01, сессия 2026-11-17, окно 20 повторов, +660 000 за 253.8 с, 3/4 подхода подтверждены",
-    "strength_per_min_other_runs": [
-      16358,
-      124598
-    ],
-    "gems_per_min": 0,
-    "gems_note": "гемы 16.1M не менялись всю сессию: трат не было",
-    "status": "ИЗМЕРЕНО В ЭКСПЕРИМЕНТЕ",
-    "note": "Замер получен на гантелях (Hand Weights) в том же зале. data/memory.json exercise_efficiency (1 604 809/мин у hand_weights) — устаревшие артефакты старого кода, доверять нельзя."
-  },
-  "open_issues": [
-    "E-005: LearningMemory.update_efficiency() не вызывается — эффективность упражнений не обновляется (базовая линия для проверки теперь есть: 155 998/мин)",
-    "живой прогон после E-013 (единое число вместо двойного чтения) не выполнен: Roblox закрыт",
-    "путь /play → /attach → /train внутри alontito не проверен вживую",
-    "механизм потери ведущей цифры гемов не доказан; кадр не сохранён",
-    "условия/потери rebirth не прочитаны",
-    "награды кодов не проверены"
+  "known_limits": [
+   "гемы на синем-на-синем не находятся цветовой локацией — используется привязка к бейджу силы",
+   "модалки затемняют сцену — порог бинаризации адаптивный (Otsu)",
+   "HUD округляет до 2 значащих цифр: погрешность до ~0.4%",
+   "кадр чужого окна честно помечается как 'без HUD игры'",
+   "диалог без текстовых кнопок (только иконка X) не распознаётся — сознательный отказ от слепого клика",
+   "одиночное чтение может потерять ведущую цифру; гемы теперь требуют двух согласованных кадров (E-017)",
+   "окно 6 повторов упирается в округление HUD: темп измеряется окном 20 повторов"
   ],
-  "next_actions": [
-    "открыть игру и пройти /play → /attach → /train 2: ожидается отсутствие отрицательных metrics_delta",
-    "EXP-02: смена упражнения равными окнами по 20 повторов",
-    "сохранять кадр при каждом чтении бейджа, чтобы поймать потерю цифры",
-    "прочитать экраны REBIRTH / STATS / STORE / CODES без нажатий"
-  ],
-  "alontito": {
-    "entry": "alontito.py",
-    "launcher": "Alontito.bat",
-    "package": [
-      "ui",
-      "memory",
-      "games_catalog",
-      "skills",
-      "brain",
-      "app",
-      "pet_terminal",
-      "mcp_server"
-    ],
-    "version": "1.4.0",
-    "commands": [
-      "/help",
-      "/games",
-      "/play",
-      "/auto",
-      "/attach",
-      "/status",
-      "/train",
-      "/watch",
-      "/learn",
-      "/memory",
-      "/skills",
-      "/journal",
-      "/safety",
-      "/mcp",
-      "/3d",
-      "/info",
-      "/about",
-      "/github",
-      "/support",
-      "/home",
-      "/theme",
-      "/quit"
-    ],
-    "allowed_actions": [
-      "TRAIN_DUMBBELLS",
-      "CLOSE_MODAL"
-    ],
-    "memory_store": "data/alontito/memory.json",
-    "journal": "data/alontito/journal.jsonl",
-    "live_path_verified": false,
-    "note": "Экран и команды прогнаны при закрытом Roblox: живой прогон alontito.py даёт код 0, 10 994 символа, 0 строк [INIT], без traceback и без байтов ESC в файле. Автопоиск проверен на реальной папке логов (честное «свежий лог не найден») и 7 тестами; полный цикл с запуском игры вживую не выполнялся.",
-    "autostart": {
-      "enabled_by_default": true,
-      "stored_in": "data/alontito/memory.json",
-      "steps": [
-        "окно Roblox найдено и HUD игры виден → подключение без перезапуска",
-        "окно найдено, но это страницы клиента → запуск нужного плейса",
-        "ничего не запущено → запуск выбранной игры (по умолчанию place 3623096087)"
-      ],
-      "identity_source": "%LOCALAPPDATA%\\Roblox\\logs, строка placeid:, свежесть ≤ 6 ч",
-      "identity_rule": "без лога плейс считается неподтверждённым; имя окна не доказательство",
-      "live_launch_verified": false
-    },
-    "ui": {
-      "design": "две панели равной высоты (лого 36 + зазор 3 + информация), команды двумя колонками, футер «готов к работе»",
-      "width_rule": "ширина = видимый текст в клетках после снятия ANSI; padding только через pad_to/clip, не str.ljust",
-      "term_width": "мин 72, максимум 112 колонок; ниже 94 панели складываются вертикально",
-      "glyphs": "только одноклеточные символы; эмодзи запрещены — они дают две клетки и ломают рамку",
-      "width_model": "широкие глифы (W/F) = 2 клетки, комбинирующие = 0, остальные = 1; clip() не режет широкий глиф пополам",
-      "verified_widths": [
-        72,
-        80,
-        104,
-        140,
-        200
-      ],
-      "empty_line_width": 0,
-      "sample_104": {
-        "nonblank_lines": 33,
-        "width": 104
-      }
-    },
-    "tests": {
-      "total": 129,
-      "modules": {
-        "test_alontito": 44,
-        "test_pet_logic": 35,
-        "test_verification": 29,
-        "test_eye": 21
-      },
-      "command": "python -m unittest tests.test_alontito tests.test_verification tests.test_eye tests.test_pet_logic",
-      "result": "129 OK (единственное предупреждение — ResourceWarning в test_eye)"
-    },
-    "home_screen_version": "1.4.0"
+  "live_session_2026_11_17": {
+   "frames_with_strength_plate": "42/42",
+   "strength_start": 3120000,
+   "strength_end": 5390000,
+   "gems": 16100000,
+   "gems_spent": 0,
+   "modal_gate": "диалог доказывается управляющим словом и HUD в том же кадре",
+   "frame_gate": "плашка бейджа должна содержать чернила цифр (E-016)",
+   "evidence": "ИЗМЕРЕНО В ЭКСПЕРИМЕНТЕ"
   }
+ },
+ "knowledge": {
+  "registry": "knowledge/sources.csv",
+  "files": [
+   "game_identity.md",
+   "mechanics.md",
+   "rebirth.md",
+   "events.md",
+   "strategies.md",
+   "unknowns.md",
+   "session_log.md",
+   "sources.csv",
+   "locations.csv",
+   "equipment.csv",
+   "pets.csv",
+   "auras.csv",
+   "economy.csv",
+   "pvp.csv",
+   "bosses.csv",
+   "codes.csv",
+   "gamepasses.csv",
+   "experiments.csv"
+  ],
+  "verified_official": [
+   "Place ID 3623096087 / Universe 1268927906",
+   "Muscle Legends Studio (874427664)",
+   "коды megalift50, speedy50, spacegems50, ultimate250 опубликованы",
+   "Premium benefits (x2 Strength, +2 spins, x2 chests, +1 pet slot)",
+   "group chest и +1 daily spin"
+  ],
+  "verified_interface": [
+   "HUD: сила (жёлтый бейдж) и второй счётчик (гемы синие / конфеты зелёные)",
+   "меню: STATS, REBIRTH, STORE, ITEMS, TRADE, INVITE, PACKS, SPOOKY PASS, QUESTS, CLANS, MOVES, CODES, ULTIMATE, BENEFITS, WHEEL, SETTINGS",
+   "хотбар из 10 упражнений",
+   "колонки игроков: Strength / Brawls / Kills / Rebirths",
+   "баннер арены Brawl с таймером"
+  ]
+ },
+ "safety": {
+  "no_real_money": true,
+  "no_gem_or_item_spend_without_approval": true,
+  "no_trades": true,
+  "no_esc": true,
+  "no_tab_leaderboard": true,
+  "no_exploits": true,
+  "no_rebirth_click": true,
+  "enforcement_levels": 3
+ },
+ "metrics": {
+  "live_game_session_this_version": true,
+  "strength_per_min": 155998,
+  "strength_per_min_source": "EXP-01, сессия 2026-11-17, окно 20 повторов, +660 000 за 253.8 с, 3/4 подхода подтверждены",
+  "strength_per_min_other_runs": [
+   16358,
+   124598
+  ],
+  "gems_per_min": 0,
+  "gems_note": "гемы 16.1M не менялись всю сессию: трат не было",
+  "status": "ИЗМЕРЕНО В ЭКСПЕРИМЕНТЕ",
+  "note": "Замер получен на гантелях (Hand Weights) в том же зале. data/memory.json exercise_efficiency (1 604 809/мин у hand_weights) — устаревшие артефакты старого кода, доверять нельзя."
+ },
+ "open_issues": [
+  "E-005: LearningMemory.update_efficiency() не вызывается — эффективность упражнений не обновляется (базовая линия для проверки теперь есть: 155 998/мин)",
+  "живой прогон после E-013 (единое число вместо двойного чтения) не выполнен: Roblox закрыт",
+  "путь /play → /attach → /train внутри alontito не проверен вживую",
+  "механизм потери ведущей цифры гемов не доказан; кадр не сохранён",
+  "условия/потери rebirth не прочитаны",
+  "награды кодов не проверены"
+ ],
+ "next_actions": [
+  "открыть игру и пройти /play → /attach → /train 2: ожидается отсутствие отрицательных metrics_delta",
+  "EXP-02: смена упражнения равными окнами по 20 повторов",
+  "сохранять кадр при каждом чтении бейджа, чтобы поймать потерю цифры",
+  "прочитать экраны REBIRTH / STATS / STORE / CODES без нажатий"
+ ],
+ "alontito": {
+  "entry": "alontito.py",
+  "launcher": "Alontito.bat",
+  "package": [
+   "ui",
+   "memory",
+   "games_catalog",
+   "skills",
+   "brain",
+   "app",
+   "pet_terminal",
+   "mcp_server",
+   "omni_link"
+  ],
+  "version": "1.5.0",
+  "commands": [
+   "/help",
+   "/games",
+   "/play",
+   "/auto",
+   "/attach",
+   "/status",
+   "/train",
+   "/watch",
+   "/learn",
+   "/memory",
+   "/skills",
+   "/journal",
+   "/safety",
+   "/mcp",
+   "/3d",
+   "/omni",
+   "/info",
+   "/about",
+   "/github",
+   "/support",
+   "/home",
+   "/theme",
+   "/quit"
+  ],
+  "allowed_actions": [
+   "TRAIN_DUMBBELLS",
+   "CLOSE_MODAL"
+  ],
+  "memory_store": "data/alontito/memory.json",
+  "journal": "data/alontito/journal.jsonl",
+  "live_path_verified": false,
+  "note": "Экран и команды прогнаны при закрытом Roblox: живой прогон alontito.py даёт код 0, 13 781 символ, 8 ровных панелей, 0 строк [INIT], без traceback и без байтов ESC в файле. Подсистема Omni подключена отдельно и только на чтение через /omni; живой цикл с моделями Ollama не выполнялся (на машине 0 моделей), полный цикл автопоиска с запуском игры вживую не выполнялся.",
+  "autostart": {
+   "enabled_by_default": true,
+   "stored_in": "data/alontito/memory.json",
+   "steps": [
+    "окно Roblox найдено и HUD игры виден → подключение без перезапуска",
+    "окно найдено, но это страницы клиента → запуск нужного плейса",
+    "ничего не запущено → запуск выбранной игры (по умолчанию place 3623096087)"
+   ],
+   "identity_source": "%LOCALAPPDATA%\\Roblox\\logs, строка placeid:, свежесть ≤ 6 ч",
+   "identity_rule": "без лога плейс считается неподтверждённым; имя окна не доказательство",
+   "live_launch_verified": false
+  },
+  "ui": {
+   "design": "две панели равной высоты (лого 36 + зазор 3 + информация), команды двумя колонками, футер «готов к работе»",
+   "width_rule": "ширина = видимый текст в клетках после снятия ANSI; padding только через pad_to/clip, не str.ljust",
+   "term_width": "мин 72, максимум 112 колонок; ниже 94 панели складываются вертикально",
+   "glyphs": "только одноклеточные символы; эмодзи запрещены — они дают две клетки и ломают рамку",
+   "width_model": "широкие глифы (W/F) = 2 клетки, комбинирующие = 0, остальные = 1; clip() не режет широкий глиф пополам",
+   "verified_widths": [
+    72,
+    80,
+    104,
+    140,
+    200
+   ],
+   "empty_line_width": 0,
+   "sample_104": {
+    "nonblank_lines": 33,
+    "width": 104
+   }
+  },
+  "tests": {
+   "total": 129,
+   "modules": {
+    "test_alontito": 44,
+    "test_pet_logic": 35,
+    "test_verification": 29,
+    "test_eye": 21
+   },
+   "command": "python -m unittest tests.test_alontito tests.test_verification tests.test_eye tests.test_pet_logic",
+   "result": "129 OK (единственное предупреждение — ResourceWarning в test_eye)"
+  },
+  "home_screen_version": "1.4.0",
+  "omni": {
+   "imported_from": "Alontito_Continual_Learning_v6.zip",
+   "imported_on": "2026-11-22",
+   "files_added": 26,
+   "name_conflicts": 0,
+   "entry_point": "alontito_omni_launcher.py",
+   "launcher": "Alontito_Omni.bat",
+   "config": "config_omni.json",
+   "terminal_command": "/omni",
+   "terminal_mode": "только чтение: конфиг, счётчики SQLite (mode=ro), проба Ollama через urllib, 1.2 с; ничего не запускает",
+   "core_files": [
+    "brain/opus_local_core.py",
+    "brain/experience_memory.py",
+    "brain/learning_engine.py",
+    "vision/omni_eye.py",
+    "games/universal_explorer.py",
+    "dashboard/app.py",
+    "alontito_omni_launcher.py",
+    "config_omni.json"
+   ],
+   "memory_db": "data/alontito_memory.sqlite3",
+   "learning_db": "data/alontito_learning.sqlite3",
+   "curated_dataset": "data/curated_training.jsonl",
+   "models": {
+    "deep": "alontito-opus:latest",
+    "fallback": "deepseek-r1:14b",
+    "fast": "qwen2.5:7b-instruct",
+    "reviewer": "qwen2.5:7b-instruct",
+    "vision": "qwen2.5vl:7b",
+    "provider": "локальный Ollama http://127.0.0.1:11434",
+    "paid_apis": false
+   },
+   "safety": {
+    "allow_trades": false,
+    "allow_memory_injection": false,
+    "input_executor": "dry-run: ALLOWED_SAFE_ACTIONS не отправляются в игру",
+    "ucb_noise_band": 0.1,
+    "auto_launch_from_terminal": false
+   },
+   "learning_rule": "пример экспортируется только при approved=1 от человека или объективного замера; модель не одобряет сама себя",
+   "lora": "только вручную, training/train_lora.py, нужен CUDA; автоматически не запускается",
+   "verification_scope": "model_review_only_not_external_fact_check",
+   "installed_deps": [
+    "requests"
+   ],
+   "missing_optional_deps": [
+    "mss",
+    "rapidocr_onnxruntime",
+    "pywinauto",
+    "aiogram",
+    "faster_whisper",
+    "torch",
+    "transformers",
+    "peft"
+   ],
+   "ollama_live": {
+    "reachable": true,
+    "models_present": 0,
+    "checked_on": "2026-11-22",
+    "evidence": "ИЗМЕРЕНО В ЭКСПЕРИМЕНТЕ"
+   },
+   "verified_live": false,
+   "untested_live": [
+    "цикл с моделями Ollama",
+    "дашборд http://127.0.0.1:8080",
+    "Telegram-мост (нет aiogram и токена)",
+    "офлайн-голос",
+    "LoRA-обучение (нет CUDA/torch)"
+   ],
+   "files_verified_sha256": 26,
+   "verification": "каждый файл архива сверен с копией в проекте по SHA-256: 26 из 26 совпали (22.11.2026)"
+  }
+ },
+ "tests": {
+  "total": 149,
+  "modules": {
+   "test_alontito": 45,
+   "test_pet_logic": 35,
+   "test_verification": 29,
+   "test_eye": 21,
+   "test_omni_link": 6,
+   "test_experience_memory": 3,
+   "test_learning_engine": 4,
+   "test_omni_opus5": 6
+  },
+  "command": "python -m unittest tests.test_alontito tests.test_verification tests.test_eye tests.test_pet_logic tests.test_omni_link tests.test_experience_memory tests.test_learning_engine tests.test_omni_opus5",
+  "result": "149 OK (единственное предупреждение — ResourceWarning в test_eye)"
+ }
 }

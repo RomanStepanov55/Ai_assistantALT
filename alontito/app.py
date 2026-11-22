@@ -14,16 +14,17 @@ import time
 from pathlib import Path
 
 from . import games_catalog
+from . import omni_link
 from .brain import Brain, interpret
 from .memory import JOURNAL_FILE, STATUSES, Memory
 from .skills import ALLOWED_ACTIONS, AlontitoBot, guard_report
 from .mcp_server import AlontitoMCPServer
 from .pet_terminal import pet3d
-from .ui import (Timer, box, clear_screen, err, home_screen, info, ok, paint,
-                 prompt, ready, say, set_background, step, table, term_width,
-                 two_columns, warn, blank)
+from .ui import (Timer, box, clear_screen, clip, err, home_screen, info, ok,
+                 paint, prompt, ready, say, set_background, step, table,
+                 term_width, two_columns, warn, blank)
 
-VERSION = "1.4.0"
+VERSION = "1.5.0"
 
 HOME_COMMANDS = [
     ("/help", "справка"),
@@ -41,6 +42,7 @@ HOME_COMMANDS = [
     ("/safety", "запреты"),
     ("/mcp", "MCP-мост для ИИ"),
     ("/3d", "3D-ассистент"),
+    ("/omni", "обучение Omni"),
     ("/info", "о боте"),
     ("/about", "о проекте"),
     ("/github", "репозиторий"),
@@ -123,6 +125,7 @@ class App:
             "/mcp": self.cmd_mcp,
             "/3d": self.cmd_3d,
             "/3д": self.cmd_3d,
+            "/omni": self.cmd_omni,
             "/info": self.cmd_info,
             "/about": self.cmd_info,
             "/github": self.cmd_github,
@@ -248,6 +251,7 @@ class App:
                 ("/safety", "границы действий"),
                 ("/mcp", "MCP-мост для ИИ"),
                 ("/3d", "3D-ассистент"),
+                ("/omni", "обучение Omni"),
                 ("/info", "о боте"),
                 ("/about", "о проекте"),
                 ("/github", "репозиторий"),
@@ -721,6 +725,104 @@ class App:
     def cmd_3d(self, args):
         cmd_line = "/3d " + " ".join(args) if args else "/3d"
         pet3d.handle_command(cmd_line)
+
+    def cmd_omni(self, args):
+        """Read-only report on the Omni continual-learning layer.
+
+        Reading files and a local SQLite snapshot is the whole action: this
+        command never starts the launcher, the dashboard or any game input.
+        """
+        blank()
+        width = term_width()
+        st = omni_link.status()
+        cfg = st["config"]
+
+        if st["installed"]:
+            core = paint(f"{st['core_present']}/{st['core_total']} файлов на месте",
+                         "green")
+        else:
+            core = (paint(f"{st['core_present']}/{st['core_total']} файлов", "yellow")
+                    + paint(" — нет: " + ", ".join(st["core_missing"]), "muted"))
+
+        model_line = (paint(str(cfg.get("deep_model", "не задана")), "lilac")
+                      + paint(" · fallback ", "muted")
+                      + paint(str(cfg.get("fallback_deep_model", "не задана")), "lilac")
+                      + paint(" · vision ", "muted")
+                      + paint(str(cfg.get("vision_model", "не задана")), "lilac"))
+
+        mem = st["memory"]
+        if mem["experiences"] is None:
+            memory_line = paint("базы ещё нет — исследователь не запускался", "muted")
+        else:
+            memory_line = paint(f"{mem['visual_states']} состояний · "
+                                f"{mem['experiences']} опытов", "lilac")
+
+        learn = st["learning"]
+        if learn["examples"] is None:
+            learning_line = paint("базы ещё нет — примеров 0", "muted")
+        else:
+            learning_line = paint(
+                f"{learn['examples']} примеров · {learn['approved']} одобрено · "
+                f"{learn['pending']} ждёт экспорта", "lilac")
+        curated = ("датасет не создан" if st["curated"] is None
+                   else f"{st['curated']} строк в датасете")
+
+        probe = omni_link.ollama_status()
+        if probe["state"] == "ok":
+            ollama_line = paint(f"отвечает {probe['url']}", "green")
+            ollama_line += paint(f" · моделей {len(probe['models'])}", "muted")
+            absent = [f"{role}: {name}" for role, name in probe.get("wanted", {}).items()
+                      if not probe.get("present", {}).get(role)]
+            if absent:
+                ollama_line += paint(" · не найдены " + ", ".join(absent), "yellow")
+        else:
+            ollama_line = (paint(f"не отвечает {probe['url']}", "yellow")
+                           + paint(" — локальные модели не запущены", "muted"))
+
+        if learn["eval_runs"] is None:
+            eval_line = paint("нет данных", "muted")
+        else:
+            eval_line = paint(f"{learn['eval_runs']} прогонов · "
+                              f"{learn['promotions']} повышений", "lilac")
+
+        lessons = []
+        for item in st["lessons"]:
+            text = (item.get("lesson") or item.get("outcome") or "").strip()
+            text = " ".join(text.split())
+            lessons.append(paint("· ", "purple") + clip(text, width - 8))
+        if not lessons:
+            lessons = [paint("опыта пока нет", "muted")]
+
+        pkgs = st["missing_packages"]
+        if pkgs:
+            pkg_line = paint(", ".join(name for name, _ in pkgs), "muted")
+        else:
+            pkg_line = paint("все опциональные пакеты установлены", "green")
+
+        say(box("OMNI · НЕПРЕРЫВНОЕ ОБУЧЕНИЕ", [
+            f"ядро      {core}",
+            paint("конфиг    ", "muted") + model_line,
+            f"Ollama    {ollama_line}",
+            paint("память    ", "muted") + memory_line,
+            paint("обучение  ", "muted") + learning_line + paint(f" · {curated}", "muted"),
+            paint("оценка    ", "muted") + eval_line,
+            "",
+            paint("последний опыт", "lilac", bold=True),
+        ] + lessons + [
+            "",
+            paint("Режим: только чтение. Терминал не запускает Omni, не открывает "
+                  "дашборд и не эмулирует ввод.", "muted"),
+            paint("Исследователь UCB1 по умолчанию работает вхолостую: исполнитель "
+                  "ввода не подключён, клики по координатам не отправляются.", "muted"),
+            "",
+            paint("Запуск отдельно:", "lilac", bold=True),
+            "  Alontito_Omni.bat   — ядро + дашборд http://127.0.0.1:8080",
+            paint("  нужны Ollama и модели из config_omni.json; шаги — "
+                  "INTEGRATION_GUIDE.md", "muted"),
+            "",
+            paint("не хватает: ", "muted") + pkg_line,
+        ], width=width, color="purple"))
+        blank()
 
     def cmd_info(self, args):
         blank()

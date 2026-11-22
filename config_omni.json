@@ -1,0 +1,21 @@
+{
+  "ollama_url": "http://127.0.0.1:11434",
+  "fast_model": "qwen2.5:7b-instruct",
+  "deep_model": "alontito-opus:latest",
+  "fallback_deep_model": "deepseek-r1:14b",
+  "vision_model": "qwen2.5vl:7b",
+  "dashboard_port": 8080,
+  "persona_mode": "cyberpunk_partner",
+  "safety": {
+    "allow_trades": false,
+    "allow_memory_injection": false,
+    "auto_reconnect_roblox": true,
+    "ucb_noise_band": 0.1
+  },
+  "memory_db_path": "data/alontito_memory.sqlite3",
+  "max_review_rounds": 2,
+  "max_context_messages": 16,
+  "request_timeout": 120,
+  "reviewer_model": "qwen2.5:7b-instruct",
+  "learning_db_path": "data/alontito_learning.sqlite3"
+}

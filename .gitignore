@@ -1,0 +1,23 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+
+# Omni runtime artifacts (generated locally, not source)
+data/alontito_memory.sqlite3
+data/alontito_memory.sqlite3-wal
+data/alontito_memory.sqlite3-shm
+data/alontito_learning.sqlite3
+data/alontito_learning.sqlite3-wal
+data/alontito_learning.sqlite3-shm
+data/curated_training.jsonl
+data/ucb1_explorer_state.json
+data/evaluations/
+tools/auto_generated/
+artifacts/
+
+# Local debug frames and ad-hoc logs (kept on disk, not in git)
+debug_frames/*.png
+*.tmp

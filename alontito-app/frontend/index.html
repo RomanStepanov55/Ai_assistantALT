@@ -1,0 +1,51 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Alontito Control Center</title>
+<link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+<div class="app">
+  <aside class="sidebar">
+    <div class="logo">ALONTITO</div>
+    <nav>
+      <button class="nav-btn active" data-view="dashboard"><span class="ico">◈</span>Дашборд</button>
+      <button class="nav-btn" data-view="soon"><span class="ico">💬</span>Чат</button>
+      <button class="nav-btn" data-view="soon"><span class="ico">🧩</span>Редактор</button>
+      <button class="nav-btn" data-view="soon"><span class="ico">📅</span>План</button>
+      <button class="nav-btn" data-view="soon"><span class="ico">⚙</span>Настройки</button>
+    </nav>
+    <div class="sidebar-foot">v0.2 · local</div>
+  </aside>
+  <main class="main">
+    <header class="topbar">
+      <div class="title">CONTROL CENTER</div>
+      <div class="controls">
+        <span id="status-pill" class="pill off">● остановлен</span>
+        <button id="btn-start" class="btn start">▶ Запустить</button>
+        <button id="btn-stop" class="btn stop" disabled>⏹ Остановить</button>
+      </div>
+    </header>
+    <section id="view-dashboard" class="view active">
+      <div class="cards">
+        <div class="card"><div class="card-label">Состояние</div><div id="c-state" class="card-value">—</div></div>
+        <div class="card"><div class="card-label">PID</div><div id="c-pid" class="card-value">—</div></div>
+        <div class="card"><div class="card-label">Время работы</div><div id="c-uptime" class="card-value">—</div></div>
+        <div class="card"><div class="card-label">Сообщений</div><div id="c-logs" class="card-value">0</div></div>
+      </div>
+      <div class="panel">
+        <div class="panel-head">🧠 Поток агента <span class="hint">вывод main.py · realtime</span></div>
+        <div id="console" class="console"><div class="empty">Агент остановлен. Нажми «▶ Запустить».</div></div>
+      </div>
+      <div class="panel placeholder">📊 График прогресса и этапы обдумывания — Фаза 1.3 (телеметрия)</div>
+    </section>
+    <section id="view-soon" class="view">
+      <div class="soon">🚧 Раздел появится на следующих фазах</div>
+    </section>
+  </main>
+</div>
+<script src="/static/app.js"></script>
+</body>
+</html>

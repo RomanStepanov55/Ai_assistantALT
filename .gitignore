@@ -21,3 +21,8 @@ artifacts/
 # Local debug frames and ad-hoc logs (kept on disk, not in git)
 debug_frames/*.png
 *.tmp
+
+# Alontito Control Center
+alontito-app/node_modules/
+alontito-app/.venv/
+.env

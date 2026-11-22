@@ -70,14 +70,14 @@
     "cooldown": 600.0,
     "dynamic": false,
     "danger_ok": true,
-    "attempts": 0,
+    "attempts": 1,
     "successes": 0,
-    "verified_attempts": 0,
+    "verified_attempts": 1,
     "verified_successes": 0,
     "ema_reward": 0.0,
-    "avg_cost": 0.0,
-    "last_used": 0.0,
-    "last_result": ""
+    "avg_cost": 2.92,
+    "last_used": 1795365733.674471,
+    "last_result": "no result"
   },
   "HATCH_EGG": {
     "name": "HATCH_EGG",
@@ -102,14 +102,14 @@
     "cooldown": 0.0,
     "dynamic": false,
     "danger_ok": true,
-    "attempts": 0,
-    "successes": 0,
+    "attempts": 1,
+    "successes": 1,
     "verified_attempts": 0,
     "verified_successes": 0,
     "ema_reward": 0.0,
-    "avg_cost": 0.0,
-    "last_used": 0.0,
-    "last_result": ""
+    "avg_cost": 0.03,
+    "last_used": 1795365755.5042775,
+    "last_result": "ok"
   },
   "TRAIN_PUSHUPS": {
     "name": "TRAIN_PUSHUPS",
@@ -118,14 +118,14 @@
     "cooldown": 0.0,
     "dynamic": false,
     "danger_ok": true,
-    "attempts": 0,
-    "successes": 0,
+    "attempts": 1,
+    "successes": 1,
     "verified_attempts": 0,
     "verified_successes": 0,
     "ema_reward": 0.0,
-    "avg_cost": 0.0,
-    "last_used": 0.0,
-    "last_result": ""
+    "avg_cost": 0.03,
+    "last_used": 1795365755.804642,
+    "last_result": "ok"
   },
   "TRAIN_SITUPS": {
     "name": "TRAIN_SITUPS",
@@ -134,14 +134,14 @@
     "cooldown": 0.0,
     "dynamic": false,
     "danger_ok": true,
-    "attempts": 0,
-    "successes": 0,
+    "attempts": 1,
+    "successes": 1,
     "verified_attempts": 0,
     "verified_successes": 0,
     "ema_reward": 0.0,
-    "avg_cost": 0.0,
-    "last_used": 0.0,
-    "last_result": ""
+    "avg_cost": 0.04,
+    "last_used": 1795365756.1231222,
+    "last_result": "ok"
   },
   "TRAIN_MACHINE": {
     "name": "TRAIN_MACHINE",
@@ -150,14 +150,14 @@
     "cooldown": 0.0,
     "dynamic": false,
     "danger_ok": true,
-    "attempts": 0,
-    "successes": 0,
+    "attempts": 1,
+    "successes": 1,
     "verified_attempts": 0,
     "verified_successes": 0,
     "ema_reward": 0.0,
-    "avg_cost": 0.0,
-    "last_used": 0.0,
-    "last_result": ""
+    "avg_cost": 3.5,
+    "last_used": 1795365766.3245878,
+    "last_result": "ok"
   },
   "TRAIN_AGILITY": {
     "name": "TRAIN_AGILITY",

@@ -1,18 +1,18 @@
 {
-  "timestamp": 1794935160.9828475,
-  "time": "2026-11-17 20:06:00",
+  "timestamp": 1795365809.656848,
+  "time": "2026-11-22 19:43:29",
   "roblox_found": true,
-  "strength_raw": "522.5K",
-  "strength": 522500,
-  "gems_raw": "16.2M",
-  "gems": 16200000,
-  "event_text": "воииаегЧм - rutfgJ",
+  "strength_raw": "",
+  "strength": null,
+  "gems_raw": "",
+  "gems": null,
+  "event_text": "Сортировать — Просмотреть Фильтр",
   "events": [],
   "modal_open": false,
   "modal_hits": [],
   "gift_ready": false,
   "near_machine": false,
-  "likely_dead": false,
-  "dead_streak": 0,
-  "motion": 0.593
+  "likely_dead": true,
+  "dead_streak": 7,
+  "motion": 0.023
 }

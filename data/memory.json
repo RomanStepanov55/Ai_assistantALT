@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "total_sessions": 42,
+  "total_sessions": 43,
   "total_playtime_sec": 0,
   "rebirth_history": [],
   "death_history": [],
@@ -29,8 +29,9 @@
   "learned_insights": [
     "Rebirthing as soon as requirement is met maximizes exponential growth.",
     "Safe zones prevent high-level players from interrupting the training cycle.",
-    "Пользователь переродился вручную 07.11: сила сбросилась 56.6M -> 63.3K. Бот научился ребёрну."
+    "Пользователь переродился вручную 07.11: сила сбросилась 56.6M -> 63.3K. Бот научился ребёрну.",
+    "eye: no glyph templates for ['B', 'T'] (those counters cannot be read)"
   ],
   "rebirths_known": 38,
-  "last_session_started": "2026-11-22 19:31:27"
+  "last_session_started": "2026-11-22 19:41:59"
 }

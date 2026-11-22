@@ -1,5 +1,5 @@
 {
-  "updated": 1794062691.7658296,
+  "updated": 1795365724.8335063,
   "policy": {
     "CLAIM_GIFTS": {
       "name": "CLAIM_GIFTS",
@@ -8,12 +8,14 @@
       "cooldown": 180.0,
       "dynamic": false,
       "danger_ok": true,
-      "attempts": 1,
+      "attempts": 0,
       "successes": 0,
+      "verified_attempts": 0,
+      "verified_successes": 0,
       "ema_reward": 0.0,
-      "avg_cost": 2.61,
-      "last_used": 1794062276.942233,
-      "last_result": "no result"
+      "avg_cost": 0.0,
+      "last_used": 0.0,
+      "last_result": ""
     },
     "BOSS_FIGHT": {
       "name": "BOSS_FIGHT",
@@ -22,12 +24,14 @@
       "cooldown": 120.0,
       "dynamic": false,
       "danger_ok": true,
-      "attempts": 1,
+      "attempts": 0,
       "successes": 0,
+      "verified_attempts": 0,
+      "verified_successes": 0,
       "ema_reward": 0.0,
-      "avg_cost": 12.12,
-      "last_used": 1794062685.8171062,
-      "last_result": "no result"
+      "avg_cost": 0.0,
+      "last_used": 0.0,
+      "last_result": ""
     },
     "CHECK_QUESTS": {
       "name": "CHECK_QUESTS",
@@ -36,12 +40,14 @@
       "cooldown": 60.0,
       "dynamic": false,
       "danger_ok": true,
-      "attempts": 1,
+      "attempts": 0,
       "successes": 0,
+      "verified_attempts": 0,
+      "verified_successes": 0,
       "ema_reward": 0.0,
-      "avg_cost": 3.22,
-      "last_used": 1794062400.0254996,
-      "last_result": "no result"
+      "avg_cost": 0.0,
+      "last_used": 0.0,
+      "last_result": ""
     },
     "SPIN_WHEEL": {
       "name": "SPIN_WHEEL",
@@ -50,12 +56,14 @@
       "cooldown": 300.0,
       "dynamic": false,
       "danger_ok": true,
-      "attempts": 1,
+      "attempts": 0,
       "successes": 0,
+      "verified_attempts": 0,
+      "verified_successes": 0,
       "ema_reward": 0.0,
-      "avg_cost": 3.25,
-      "last_used": 1794062467.9524179,
-      "last_result": "no result"
+      "avg_cost": 0.0,
+      "last_used": 0.0,
+      "last_result": ""
     },
     "PETS_MAINTENANCE": {
       "name": "PETS_MAINTENANCE",
@@ -64,12 +72,14 @@
       "cooldown": 600.0,
       "dynamic": false,
       "danger_ok": true,
-      "attempts": 1,
+      "attempts": 0,
       "successes": 0,
+      "verified_attempts": 0,
+      "verified_successes": 0,
       "ema_reward": 0.0,
-      "avg_cost": 9.06,
-      "last_used": 1794061458.2194843,
-      "last_result": "no result"
+      "avg_cost": 0.0,
+      "last_used": 0.0,
+      "last_result": ""
     },
     "HATCH_EGG": {
       "name": "HATCH_EGG",
@@ -78,12 +88,14 @@
       "cooldown": 600.0,
       "dynamic": false,
       "danger_ok": true,
-      "attempts": 1,
+      "attempts": 0,
       "successes": 0,
+      "verified_attempts": 0,
+      "verified_successes": 0,
       "ema_reward": 0.0,
-      "avg_cost": 4.59,
-      "last_used": 1794062489.4521992,
-      "last_result": "no result"
+      "avg_cost": 0.0,
+      "last_used": 0.0,
+      "last_result": ""
     },
     "TRAIN_DUMBBELLS": {
       "name": "TRAIN_DUMBBELLS",
@@ -92,12 +104,14 @@
       "cooldown": 0.0,
       "dynamic": false,
       "danger_ok": true,
-      "attempts": 2,
+      "attempts": 0,
       "successes": 0,
+      "verified_attempts": 0,
+      "verified_successes": 0,
       "ema_reward": 0.0,
-      "avg_cost": 5.02,
-      "last_used": 1794062579.9858778,
-      "last_result": "no result"
+      "avg_cost": 0.0,
+      "last_used": 0.0,
+      "last_result": ""
     },
     "TRAIN_PUSHUPS": {
       "name": "TRAIN_PUSHUPS",
@@ -106,12 +120,14 @@
       "cooldown": 0.0,
       "dynamic": false,
       "danger_ok": true,
-      "attempts": 2,
+      "attempts": 0,
       "successes": 0,
+      "verified_attempts": 0,
+      "verified_successes": 0,
       "ema_reward": 0.0,
-      "avg_cost": 5.05,
-      "last_used": 1794062630.798075,
-      "last_result": "no result"
+      "avg_cost": 0.0,
+      "last_used": 0.0,
+      "last_result": ""
     },
     "TRAIN_SITUPS": {
       "name": "TRAIN_SITUPS",
@@ -120,12 +136,14 @@
       "cooldown": 0.0,
       "dynamic": false,
       "danger_ok": true,
-      "attempts": 2,
+      "attempts": 0,
       "successes": 0,
+      "verified_attempts": 0,
+      "verified_successes": 0,
       "ema_reward": 0.0,
-      "avg_cost": 5.27,
-      "last_used": 1794062645.4708247,
-      "last_result": "no result"
+      "avg_cost": 0.0,
+      "last_used": 0.0,
+      "last_result": ""
     },
     "TRAIN_MACHINE": {
       "name": "TRAIN_MACHINE",
@@ -134,12 +152,14 @@
       "cooldown": 0.0,
       "dynamic": false,
       "danger_ok": true,
-      "attempts": 1,
+      "attempts": 0,
       "successes": 0,
+      "verified_attempts": 0,
+      "verified_successes": 0,
       "ema_reward": 0.0,
-      "avg_cost": 6.93,
-      "last_used": 1794062092.5568366,
-      "last_result": "no result"
+      "avg_cost": 0.0,
+      "last_used": 0.0,
+      "last_result": ""
     },
     "TRAIN_AGILITY": {
       "name": "TRAIN_AGILITY",
@@ -148,12 +168,14 @@
       "cooldown": 0.0,
       "dynamic": false,
       "danger_ok": true,
-      "attempts": 1,
+      "attempts": 0,
       "successes": 0,
+      "verified_attempts": 0,
+      "verified_successes": 0,
       "ema_reward": 0.0,
-      "avg_cost": 3.04,
-      "last_used": 1794062179.2785006,
-      "last_result": "'AgentActions' object has no attribute 'train_agility_run'"
+      "avg_cost": 0.0,
+      "last_used": 0.0,
+      "last_result": ""
     },
     "DISCOVER": {
       "name": "DISCOVER",
@@ -162,12 +184,14 @@
       "cooldown": 300.0,
       "dynamic": false,
       "danger_ok": true,
-      "attempts": 1,
+      "attempts": 0,
       "successes": 0,
+      "verified_attempts": 0,
+      "verified_successes": 0,
       "ema_reward": 0.0,
-      "avg_cost": 3.08,
-      "last_used": 1794062562.5309825,
-      "last_result": "no result"
+      "avg_cost": 0.0,
+      "last_used": 0.0,
+      "last_result": ""
     },
     "DAILY_REWARDS": {
       "name": "DAILY_REWARDS",
@@ -176,12 +200,14 @@
       "cooldown": 1800.0,
       "dynamic": false,
       "danger_ok": true,
-      "attempts": 1,
+      "attempts": 0,
       "successes": 0,
+      "verified_attempts": 0,
+      "verified_successes": 0,
       "ema_reward": 0.0,
-      "avg_cost": 1.1,
-      "last_used": 1794062551.9658015,
-      "last_result": "name 'CYRILLIC_MAP' is not defined"
+      "avg_cost": 0.0,
+      "last_used": 0.0,
+      "last_result": ""
     },
     "REBIRTH": {
       "name": "REBIRTH",
@@ -192,6 +218,8 @@
       "danger_ok": true,
       "attempts": 0,
       "successes": 0,
+      "verified_attempts": 0,
+      "verified_successes": 0,
       "ema_reward": 0.0,
       "avg_cost": 0.0,
       "last_used": 0.0,
@@ -201,6 +229,7 @@
   "notes": [
     "Rebirthing as soon as requirement is met maximizes exponential growth.",
     "Safe zones prevent high-level players from interrupting the training cycle.",
-    "Пользователь переродился вручную 07.11: сила сбросилась 56.6M -> 63.3K. Бот научился ребёрну."
+    "Пользователь переродился вручную 07.11: сила сбросилась 56.6M -> 63.3K. Бот научился ребёрну.",
+    "eye: no glyph templates for ['B', 'T'] (those counters cannot be read)"
   ]
 }

@@ -1,5 +1,6 @@
-"""Мост управления игровым агентом: запуск/остановка main.py как фонового процесса."""
+"""Мост управления агентом: запуск agent_boot.py (авто-запуск игры) и остановка дерева процессов."""
 from __future__ import annotations
+import os
 import subprocess
 import sys
 import threading
@@ -7,7 +8,7 @@ import time
 from collections import deque
 from datetime import datetime, timezone
 
-from backend.config import AGENT_ENTRY, PROJECT_ROOT, LOG_BUFFER_SIZE
+from backend.config import BOOT_ENTRY, PROJECT_ROOT, LOG_BUFFER_SIZE
 
 
 class AgentBridge:
@@ -33,17 +34,20 @@ class AgentBridge:
         with self._lock:
             if self.is_running():
                 return {"ok": False, "error": "Агент уже запущен"}
-            if not AGENT_ENTRY.exists():
-                return {"ok": False, "error": f"Не найден {AGENT_ENTRY}"}
+            if not BOOT_ENTRY.exists():
+                return {"ok": False, "error": f"Не найден {BOOT_ENTRY}"}
             self._logs.clear()
+            env = os.environ.copy()
+            env["PYTHONUNBUFFERED"] = "1"
+            env["PYTHONIOENCODING"] = "utf-8"
             flags = subprocess.CREATE_NEW_PROCESS_GROUP if sys.platform == "win32" else 0
             self._proc = subprocess.Popen(
-                [sys.executable, str(AGENT_ENTRY)],
+                [sys.executable, "-u", str(BOOT_ENTRY)],
                 cwd=str(PROJECT_ROOT),
                 stdout=subprocess.PIPE,
                 stderr=subprocess.STDOUT,
                 text=True, encoding="utf-8", errors="replace",
-                creationflags=flags,
+                creationflags=flags, env=env,
             )
             self._started_at = time.time()
             self._last_exit = None
@@ -54,7 +58,11 @@ class AgentBridge:
         with self._lock:
             if not self.is_running():
                 return {"ok": False, "error": "Агент не запущен"}
-            self._proc.terminate()
+            pid = self._proc.pid
+            if sys.platform == "win32":
+                subprocess.run(["taskkill", "/PID", str(pid), "/T", "/F"], capture_output=True)
+            else:
+                self._proc.terminate()
             try:
                 self._proc.wait(timeout=5)
             except subprocess.TimeoutExpired:

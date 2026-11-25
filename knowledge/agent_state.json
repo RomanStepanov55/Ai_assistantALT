@@ -7,8 +7,8 @@
   "creator": "Muscle Legends Studio (group 874427664)",
   "identity_rule": "Игра определяется по Place ID, а не по названию/иконке"
  },
- "version": "1.5",
- "updated": "2026-11-22",
+ "version": "1.6",
+ "updated": "2026-11-25",
  "mode": "Г (ИСПОЛНИТЕЛЬ)",
  "capabilities": {
   "web_research": true,
@@ -135,7 +135,9 @@
   "no_tab_leaderboard": true,
   "no_exploits": true,
   "no_rebirth_click": true,
-  "enforcement_levels": 3
+  "enforcement_levels": 3,
+  "never_plays_for_user": true,
+  "game_input": "отключён структурно с 2026-11-24: config.GAME_INPUT_ENABLED = False, InputController._guard() отклоняет 15 из 15 путей ввода"
  },
  "metrics": {
   "live_game_session_this_version": true,
@@ -153,13 +155,13 @@
  "open_issues": [
   "E-005: LearningMemory.update_efficiency() не вызывается — эффективность упражнений не обновляется (базовая линия для проверки теперь есть: 155 998/мин)",
   "живой прогон после E-013 (единое число вместо двойного чтения) не выполнен: Roblox закрыт",
-  "путь /play → /attach → /train внутри alontito не проверен вживую",
+  "путь /play → /attach → /watch внутри alontito не проверен вживую",
   "механизм потери ведущей цифры гемов не доказан; кадр не сохранён",
   "условия/потери rebirth не прочитаны",
   "награды кодов не проверены"
  ],
  "next_actions": [
-  "открыть игру и пройти /play → /attach → /train 2: ожидается отсутствие отрицательных metrics_delta",
+  "открыть игру и пройти /play → /attach → /watch 60: ожидается пассивное чтение HUD без ввода",
   "EXP-02: смена упражнения равными окнами по 20 повторов",
   "сохранять кадр при каждом чтении бейджа, чтобы поймать потерю цифры",
   "прочитать экраны REBIRTH / STATS / STORE / CODES без нажатий"
@@ -178,7 +180,7 @@
    "mcp_server",
    "omni_link"
   ],
-  "version": "1.5.0",
+  "version": "1.6.0",
   "commands": [
    "/help",
    "/games",
@@ -186,7 +188,6 @@
    "/auto",
    "/attach",
    "/status",
-   "/train",
    "/watch",
    "/learn",
    "/memory",
@@ -204,14 +205,11 @@
    "/theme",
    "/quit"
   ],
-  "allowed_actions": [
-   "TRAIN_DUMBBELLS",
-   "CLOSE_MODAL"
-  ],
+  "allowed_actions": [],
   "memory_store": "data/alontito/memory.json",
   "journal": "data/alontito/journal.jsonl",
   "live_path_verified": false,
-  "note": "Экран и команды прогнаны при закрытом Roblox: живой прогон alontito.py даёт код 0, 13 781 символ, 8 ровных панелей, 0 строк [INIT], без traceback и без байтов ESC в файле. Подсистема Omni подключена отдельно и только на чтение через /omni; живой цикл с моделями Ollama не выполнялся (на машине 0 моделей), полный цикл автопоиска с запуском игры вживую не выполнялся.",
+  "note": "С 2026-11-24 Алонтито не играет за пользователя (решение пользователя: юридические риски автоматизации). Ввод в игру отключён на уровне InputController, команда /train удалена, main.py стал входом только для чтения, наблюдение пассивное. Экран и команды прогнаны упряжкой без запуска Roblox (буквальный python alontito.py на этой машине запускает Roblox и 3D-питомца): код 0, ровные панели на 72/80/104/140/200, 0 строк [INIT], без traceback и без байтов ESC. Прежняя цифра «13 781 символов, 8 панелей» без записанной последовательности команд не воспроизводится. Подсистема Omni подключена отдельно и только на чтение через /omni; моделей Ollama на машине 0.",
   "autostart": {
    "enabled_by_default": true,
    "stored_in": "data/alontito/memory.json",
@@ -326,21 +324,85 @@
    ],
    "files_verified_sha256": 26,
    "verification": "каждый файл архива сверен с копией в проекте по SHA-256: 26 из 26 совпали (22.11.2026)"
-  }
+  },
+  "allowed_actions_note": "пусто с 2026-11-24: агент не выполняет действий в игре; доступны только чтение (health, observe, inspect, capture_frame)"
  },
  "tests": {
-  "total": 149,
+  "total": 259,
   "modules": {
-   "test_alontito": 45,
+   "test_alontito": 46,
    "test_pet_logic": 35,
    "test_verification": 29,
    "test_eye": 21,
    "test_omni_link": 6,
    "test_experience_memory": 3,
    "test_learning_engine": 4,
-   "test_omni_opus5": 6
+   "test_omni_opus5": 6,
+   "test_neuro_lab": 33,
+   "test_skill_autonomy": 14,
+   "test_task_planner": 7,
+   "test_resource_governor": 7,
+   "test_panel_bridge": 6,
+   "test_voice_chat": 12,
+   "test_input_guard": 4,
+   "test_pult": 20,
+   "test_watcher_passive": 6
   },
-  "command": "python -m unittest tests.test_alontito tests.test_verification tests.test_eye tests.test_pet_logic tests.test_omni_link tests.test_experience_memory tests.test_learning_engine tests.test_omni_opus5",
-  "result": "149 OK (единственное предупреждение — ResourceWarning в test_eye)"
+  "command": "python -m unittest tests.test_alontito tests.test_pet_logic tests.test_verification tests.test_eye tests.test_omni_link tests.test_experience_memory tests.test_learning_engine tests.test_omni_opus5 tests.test_neuro_lab tests.test_skill_autonomy tests.test_task_planner tests.test_resource_governor tests.test_panel_bridge tests.test_voice_chat tests.test_input_guard tests.test_pult tests.test_watcher_passive",
+  "result": "259 OK (8 прежних модулей — 150, новые — 109)",
+  "note": "unittest discover не использовать: часть тестов меняет рабочие файлы"
+ },
+ "companion": {
+  "decision_date": "2026-11-24",
+  "rule": "агент не играет за пользователя: наблюдает, запоминает, консультирует",
+  "reason": "решение пользователя — юридические риски автоматизации Roblox",
+  "enforcement": [
+   "config.GAME_INPUT_ENABLED = False",
+   "InputController._guard() перед каждым событием ввода",
+   "main.py / run_action.py — только чтение; run_adapter.py закрыт",
+   "ALLOWED_ACTIONS пуст; /train, train и close_dialog удалены",
+   "MCP: execute_safe_action удалён из списка инструментов"
+  ],
+  "passive_observation": "Watcher.observe() не вызывает ensure_focused(); кадр без плашек бейджей (E-009) чисел не даёт",
+  "verified_live": false,
+  "unverified_live": [
+   "наблюдение при открытой игре (Roblox был закрыт)",
+   "кадр и чтение HUD в веб-пульте",
+   "доступ к пульту с телефона",
+   "автопоиск терминала при запущенном Roblox"
+  ],
+  "legacy_bot_code": "код прежнего бота (agent_actions.py, драйверы, brain/mind.py) остаётся в дереве отключённым и в истории git; физически не удалялся"
+ },
+ "pult": {
+  "entry": "pult/server.py",
+  "launcher": "Pult.bat",
+  "source": "alontito_pult_and_fixes.zip, 2026-11-24",
+  "default_host": "127.0.0.1 (в архиве было 0.0.0.0; сеть открывается явно)",
+  "actions": [
+   "health",
+   "observe"
+  ],
+  "token_file": "pult/pult_config.json (в .gitignore)",
+  "verified_in_browser": true,
+  "verification_scope": "вход по токену, перезагрузка, чат, отказ на «потренируйся», терминал, знания; Roblox закрыт"
+ },
+ "v5_libraries": {
+  "source": "alontito_v5_update.zip, 2026-11-23",
+  "files": [
+   "brain/neuro_lab.py",
+   "brain/skill_autonomy.py",
+   "brain/task_planner.py",
+   "brain/resource_governor.py",
+   "brain/panel_bridge.py",
+   "brain/voice_chat.py",
+   "tools/build_pet_clips_v4.py"
+  ],
+  "wired_to_game": false,
+  "pet_clips": 50,
+  "not_merged": [
+   "brain/__init__.py (пустой, затёр бы docstring)",
+   "panel/ (PyQt-пульт)"
+  ],
+  "details": "README_UPDATE.md"
  }
 }

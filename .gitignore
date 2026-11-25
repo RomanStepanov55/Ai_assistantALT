@@ -26,3 +26,9 @@ debug_frames/*.png
 alontito-app/node_modules/
 alontito-app/.venv/
 .env
+
+# Alontito v5 runtime state (learning models and panel queues, like ucb1 state)
+data/neuro_lab.json
+data/skill_autonomy.json
+data/panel_commands.json
+data/panel_status.json

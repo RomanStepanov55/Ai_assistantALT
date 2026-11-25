@@ -62,7 +62,11 @@ MODE_HELP = {
 }
 ALL_CLIPS = ("idle", "walk", "sit_idle", "drag_panic", "drag_drop", "activity_coding", "activity_rubik",
              "roblox_watch_back", "portal_reach_in", "portal_eat_drink", "disintegrate",
-             "run", "tiptoe", "happy", "laugh", "excited", "sad", "cry", "angry", "annoyed", "surprised", "confused", "curious", "shy", "scared", "proud", "facepalm", "shrug", "clap", "dance", "bow", "point", "sneeze", "cough")
+             "run", "tiptoe", "happy", "laugh", "excited", "sad", "cry", "angry", "annoyed", "surprised", "confused", "curious", "shy", "scared", "proud", "facepalm", "shrug", "clap", "dance", "bow", "point", "sneeze", "cough",
+             # v4 (tools/build_pet_clips_v4.py): 16 новых клипов
+             "wave", "nod", "shake_head", "sleepy", "fall", "land", "backflip",
+             "spin_360", "moonwalk", "stretch", "yawn", "think", "idea", "dab",
+             "peek", "headbang")
 
 DEFAULT_CONFIG: Dict[str, Any] = {
     "enabled": False,            # включён ли 3D-агент (запускать вместе с терминалом)

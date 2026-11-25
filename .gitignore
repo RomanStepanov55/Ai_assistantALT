@@ -32,3 +32,10 @@ data/neuro_lab.json
 data/skill_autonomy.json
 data/panel_commands.json
 data/panel_status.json
+
+# Web Pult runtime files: the token must never be committed
+pult/pult_config.json
+data/pult_chat.sqlite3
+data/pult_frame.png
+# external ROI calibration is local to the machine
+config_rois.json

@@ -1,0 +1,128 @@
+/* Alontito Pult — neon dark, mobile-first */
+:root {
+  --bg: #0a0a14;
+  --bg2: #101022;
+  --panel: #14142a;
+  --line: #23234a;
+  --txt: #dfe3ff;
+  --dim: #8a8fb8;
+  --cyan: #4cf0ff;
+  --violet: #c060ff;
+  --pink: #b070ff;
+  --ok: #3ddc84;
+  --bad: #ff5d73;
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+html, body { height: 100%; }
+body {
+  background: radial-gradient(1200px 600px at 80% -10%, #1b1040 0%, var(--bg) 55%);
+  color: var(--txt);
+  font: 15px/1.45 "Segoe UI", system-ui, sans-serif;
+  display: flex; flex-direction: column;
+  padding-bottom: env(safe-area-inset-bottom);
+}
+.hidden { display: none !important; }
+.dim { color: var(--dim); font-size: 13px; }
+
+/* login */
+.login { position: fixed; inset: 0; background: var(--bg); z-index: 50;
+  display: flex; align-items: center; justify-content: center; }
+.login-box { background: var(--panel); border: 1px solid var(--line);
+  border-radius: 16px; padding: 28px; width: min(92vw, 380px); text-align: center; }
+.login-box h1 { font-size: 26px; letter-spacing: 2px; margin-bottom: 12px; }
+.login-box input { width: 100%; margin: 10px 0; padding: 12px; border-radius: 10px;
+  border: 1px solid var(--line); background: var(--bg2); color: var(--txt); }
+.login-box button { width: 100%; padding: 12px; border: 0; border-radius: 10px;
+  background: linear-gradient(90deg, var(--cyan), var(--violet));
+  color: #06060f; font-weight: 700; cursor: pointer; }
+
+/* topbar */
+.topbar { display: flex; justify-content: space-between; align-items: center;
+  padding: 12px 16px; border-bottom: 1px solid var(--line);
+  position: sticky; top: 0; background: rgba(10,10,20,.85); backdrop-filter: blur(6px); z-index: 5; }
+.brand { font-weight: 800; letter-spacing: 2px; }
+.brand span, .login-box h1 span { color: var(--cyan); margin-left: 6px; }
+.conn { display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--dim); }
+.dot { width: 10px; height: 10px; border-radius: 50%; background: var(--bad);
+  box-shadow: 0 0 8px var(--bad); }
+.dot.on { background: var(--ok); box-shadow: 0 0 8px var(--ok); }
+
+/* tabs */
+.tabs { display: flex; gap: 6px; padding: 10px 12px 0; overflow-x: auto; }
+.tab { flex: 1 0 auto; padding: 10px 14px; border: 1px solid var(--line);
+  border-bottom: 0; border-radius: 12px 12px 0 0; background: var(--bg2);
+  color: var(--dim); cursor: pointer; font-size: 14px; white-space: nowrap; }
+.tab.active { color: var(--txt); background: var(--panel);
+  border-color: var(--pink); box-shadow: inset 0 2px 0 var(--cyan); }
+
+main { flex: 1; overflow-y: auto; }
+.page { display: none; padding: 16px; max-width: 860px; margin: 0 auto; }
+.page.active { display: block; }
+h2 { font-size: 15px; margin: 18px 0 8px; color: var(--cyan); letter-spacing: 1px; }
+
+/* panel */
+.cards { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; }
+@media (min-width: 640px) { .cards { grid-template-columns: repeat(4, 1fr); } }
+.card { background: var(--panel); border: 1px solid var(--line); border-radius: 14px;
+  padding: 12px 14px; }
+.card-label { font-size: 12px; color: var(--dim); text-transform: uppercase; letter-spacing: 1px; }
+.card-value { font-size: 22px; font-weight: 700; margin-top: 4px;
+  text-shadow: 0 0 12px rgba(76,240,255,.35); }
+#chart { width: 100%; margin: 14px 0; background: var(--panel);
+  border: 1px solid var(--line); border-radius: 14px; }
+.frame-wrap { position: relative; border: 1px solid var(--line); border-radius: 14px;
+  overflow: hidden; background: #000; margin-bottom: 14px; }
+.frame-wrap img { width: 100%; display: block; }
+.frame-empty { position: absolute; inset: 0; display: flex; align-items: center;
+  justify-content: center; color: var(--dim); font-size: 13px; }
+.btn-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; margin-bottom: 10px; }
+@media (min-width: 640px) { .btn-grid { grid-template-columns: repeat(4, 1fr); } }
+.act { padding: 14px; border-radius: 12px; border: 1px solid var(--line);
+  background: linear-gradient(135deg, #182040, #141432); color: var(--txt);
+  font-size: 14px; cursor: pointer; transition: .15s; }
+.act:active { transform: scale(.97); }
+.act:hover { border-color: var(--cyan); }
+.act.warn { border-color: rgba(192,96,255,.6); }
+.act.ghost { background: transparent; color: var(--dim); }
+.result { margin-top: 10px; padding: 12px; background: var(--bg2);
+  border: 1px solid var(--line); border-radius: 12px; font-size: 13px;
+  white-space: pre-wrap; word-break: break-word; min-height: 20px; }
+
+/* chat */
+.chat-log { display: flex; flex-direction: column; gap: 8px; margin-bottom: 12px; }
+.msg { max-width: 85%; padding: 10px 14px; border-radius: 16px; white-space: pre-wrap;
+  word-break: break-word; }
+.msg.user { align-self: flex-end; background: linear-gradient(135deg, #233, #1b2a4a);
+  border: 1px solid var(--line); border-bottom-right-radius: 4px; }
+.msg.assistant { align-self: flex-start; background: var(--panel);
+  border: 1px solid rgba(192,96,255,.4); border-bottom-left-radius: 4px; }
+.chips { display: flex; gap: 8px; overflow-x: auto; padding-bottom: 8px; }
+.chip { flex: 0 0 auto; padding: 8px 12px; border-radius: 999px; font-size: 13px;
+  border: 1px solid var(--line); background: var(--bg2); color: var(--cyan);
+  cursor: pointer; }
+.chat-input { display: flex; gap: 8px; position: sticky; bottom: 8px; }
+.chat-input input { flex: 1; padding: 14px; border-radius: 14px;
+  border: 1px solid var(--line); background: var(--panel); color: var(--txt); font-size: 15px; }
+.chat-input button { flex: 0 0 auto; width: auto; padding: 12px 16px;
+  border: 0; border-radius: 14px; font-size: 14px; font-weight: 600;
+  background: linear-gradient(135deg, var(--cyan), var(--violet)); color: #06060f;
+  cursor: pointer; }
+
+/* terminal */
+.terminal { background: #05050c; border: 1px solid var(--line); border-radius: 14px;
+  padding: 12px; height: 60vh; overflow-y: auto; font: 12px/1.5 Consolas, monospace;
+  white-space: pre-wrap; word-break: break-all; }
+
+/* memory & knowledge */
+table { width: 100%; border-collapse: collapse; font-size: 13px; }
+th, td { text-align: left; padding: 8px 10px; border-bottom: 1px solid var(--line); }
+th { color: var(--dim); font-weight: 600; }
+.list { list-style: none; }
+.list li { background: var(--panel); border: 1px solid var(--line);
+  border-radius: 10px; padding: 10px 12px; margin-bottom: 8px; font-size: 13px;
+  white-space: pre-wrap; word-break: break-word; }
+
+/* No-frame state: the <img> stays hidden until a real frame loads, and the
+   placeholder keeps a visible area instead of collapsing into a thin bar. */
+.frame-wrap { min-height: 96px; background: var(--panel); }
+.frame-empty { padding: 18px; text-align: center; }

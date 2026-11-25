@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0a0a14">
+<meta name="referrer" content="no-referrer">
+<title>Alontito Pult</title>
+<link rel="stylesheet" href="/style.css">
+</head>
+<body>
+<div id="login" class="login hidden">
+  <div class="login-box">
+    <h1>ALONTITO<span>PULT</span></h1>
+    <p>Введите токен из консоли сервера (pult_config.json):</p>
+    <input id="token-input" type="password" placeholder="токен" autocomplete="off">
+    <button id="token-save">Подключиться</button>
+    <p class="dim" id="login-error"></p>
+  </div>
+</div>
+
+<header class="topbar">
+  <div class="brand">ALONTITO<span>PULT</span></div>
+  <div class="conn"><span id="conn-dot" class="dot"></span><span id="conn-text">…</span></div>
+</header>
+
+<nav class="tabs">
+  <button class="tab active" data-tab="panel">Панель</button>
+  <button class="tab" data-tab="chat">Чат</button>
+  <button class="tab" data-tab="terminal">Терминал</button>
+  <button class="tab" data-tab="memory">Память</button>
+  <button class="tab" data-tab="knowledge">Знания</button>
+</nav>
+
+<main>
+
+<section id="tab-panel" class="page active">
+  <div class="cards">
+    <div class="card"><div class="card-label">Сила</div><div class="card-value" id="c-strength">—</div></div>
+    <div class="card"><div class="card-label">Гемы</div><div class="card-value" id="c-gems">—</div></div>
+    <div class="card"><div class="card-label">Окно игры</div><div class="card-value" id="c-attached">—</div></div>
+    <div class="card"><div class="card-label">Сессии</div><div class="card-value" id="c-sessions">—</div></div>
+  </div>
+  <canvas id="chart" height="90"></canvas>
+  <div class="frame-wrap"><img id="frame" class="hidden" alt="кадр окна игры"><div class="frame-empty" id="frame-empty">кадр появится, когда окно игры видно на экране</div></div>
+  <p class="dim note">Алонтито не играет за вас: только наблюдает и подсказывает.</p>
+  <div class="btn-grid">
+    <button class="act" data-action="health">Проверка HUD</button>
+    <button class="act" data-action="observe">Наблюдать сцену</button>
+    <button class="act ghost" id="btn-refresh">Обновить</button>
+  </div>
+  <pre id="action-result" class="result"></pre>
+</section>
+
+<section id="tab-chat" class="page">
+  <div id="chat-log" class="chat-log"></div>
+  <div class="chips">
+    <button class="chip">Что ты умеешь?</button>
+    <button class="chip">Статус</button>
+    <button class="chip">Что видишь?</button>
+  </div>
+  <div class="chat-input">
+    <input id="chat-text" placeholder="Сообщение Алонтито…" autocomplete="off">
+    <button id="chat-send">Отправить</button>
+  </div>
+</section>
+
+<section id="tab-terminal" class="page">
+  <pre id="term" class="terminal"></pre>
+</section>
+
+<section id="tab-memory" class="page">
+  <h2>Навыки</h2>
+  <table id="skills-table"><thead><tr>
+    <th>Навык</th><th>Попыток</th><th>Успех</th><th>в минуту</th>
+  </tr></thead><tbody></tbody></table>
+  <h2>Факты <span class="dim" id="facts-count"></span></h2>
+  <ul id="facts-list" class="list"></ul>
+  <h2>История чата пульта</h2>
+  <button class="act ghost" id="btn-chat-history">Загрузить историю</button>
+  <ul id="chat-history-list" class="list"></ul>
+</section>
+
+<section id="tab-knowledge" class="page">
+  <p class="dim" id="kb-dir"></p>
+  <h2>Уроки (<span id="kb-lessons-n">0</span>)</h2>
+  <ul id="kb-lessons" class="list"></ul>
+  <h2>Факты базы знаний</h2>
+  <ul id="kb-facts" class="list"></ul>
+</section>
+
+</main>
+<script src="/app.js"></script>
+</body>
+</html>

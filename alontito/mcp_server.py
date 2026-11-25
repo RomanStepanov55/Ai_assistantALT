@@ -1,11 +1,15 @@
-"""Model Context Protocol (MCP) Server for Alontito / Roblox Agent.
+"""Model Context Protocol (MCP) Server for Alontito / Roblox companion.
 
 Provides a standard JSON-RPC 2.0 interface for AI assistants (Cursor, Claude,
 Antigravity, OpenCode, etc.) to:
-  - inspect what the bot currently sees (HUD, badges, raw frame)
-  - read memory, facts and learned skills
-  - execute whitelisted safe actions in the game
-  - control autonomous training / pause
+  - inspect what the companion currently sees (HUD, badges, raw frame)
+  - read memory, facts and measured runs
+  - capture a screenshot for visual reasoning
+
+HARD RULE #2 (user decision, 2026-11-24): the companion never plays for the
+user. The former execute_safe_action tool is gone: game input is disabled at
+the InputController level (config.GAME_INPUT_ENABLED is False), so no MCP
+client can train, click or steer the game through this server.
 
 Runs over stdio or local TCP/HTTP without external dependencies.
 """
@@ -19,7 +23,7 @@ import time
 from typing import Any, Dict, List, Optional
 
 from .memory import Memory
-from .skills import AlontitoBot, ALLOWED_ACTIONS, guard_report
+from .skills import AlontitoBot, guard_report
 
 # Protocol constants
 MCP_PROTOCOL_VERSION = "2024-11-05"
@@ -87,29 +91,6 @@ class AlontitoMCPServer:
                             "default": 1024,
                         }
                     },
-                },
-            },
-            {
-                "name": "execute_safe_action",
-                "description": (
-                    "Executes a verified safe game action. Permitted actions: "
-                    + ", ".join(ALLOWED_ACTIONS)
-                ),
-                "inputSchema": {
-                    "type": "object",
-                    "properties": {
-                        "action": {
-                            "type": "string",
-                            "enum": list(ALLOWED_ACTIONS),
-                            "description": "The whitelisted action name to execute",
-                        },
-                        "reps": {
-                            "type": "integer",
-                            "description": "Number of repetitions (for lifts/train, default 6)",
-                            "default": 6,
-                        },
-                    },
-                    "required": ["action"],
                 },
             },
             {
@@ -203,21 +184,15 @@ class AlontitoMCPServer:
             }
 
         elif tool_name == "execute_safe_action":
-            action = arguments.get("action")
-            reps = int(arguments.get("reps", 6))
-            if action not in ALLOWED_ACTIONS:
-                return {
-                    "isError": True,
-                    "content": [{"type": "text", "text": f"Action '{action}' is rejected by safety guards."}],
-                }
-            result = self.bot.run_action(action, reps=reps)
+            # HARD RULE #2 (2026-11-24): no game action can be executed.
+            # The tool is kept in the dispatch only to answer honestly instead
+            # of "Unknown tool".
             return {
-                "content": [
-                    {
-                        "type": "text",
-                        "text": json.dumps(result, indent=2, ensure_ascii=False, default=str),
-                    }
-                ]
+                "isError": True,
+                "content": [{"type": "text",
+                             "text": "Действия в игре отключены: Алонтито не "
+                                     "играет за пользователя (2026-11-24). "
+                                     "Доступно только наблюдение и память."}],
             }
 
         elif tool_name == "get_bot_memory":

@@ -4,19 +4,25 @@ Every skill returns a SkillResult whose `reward` is either a verified number or
 None. None means "not measured" and is never displayed as zero: the whole
 verification layer exists because a fake +1 poisoned the learning data before.
 
+HARD RULE #2 (user decision, 2026-11-24): Alontito never plays for the user.
+The only skills left are read-only (health, observe). Training and dialog
+closing were removed here AND are refused one level lower, in
+InputController (config.GAME_INPUT_ENABLED is False), so no caller can bring
+them back by calling the stack directly.
+
 The bot stack is built lazily, so opening Alontito never depends on Roblox
 running or on the vision stack importing successfully.
 """
 import time
 from dataclasses import dataclass, field
-from typing import Any, Callable, Dict, List, Optional
+from typing import Any, Dict, List, Optional
 
 from .memory import MISSING, STATUS_MEASURED, STATUS_UNCONFIRMED
 
-# Actions this app is allowed to execute. Everything else stays unreachable
-# until the user explicitly turns it on: HATCH_EGG spends gems, PETS_MAINTENANCE
-# deletes pets, REBIRTH resets progress.
-ALLOWED_ACTIONS = {"TRAIN_DUMBBELLS", "CLOSE_MODAL"}
+# Actions this app may execute in the game. Empty by decision of 2026-11-24:
+# the agent observes and consults, it does not act. Kept as a name because
+# /safety and the MCP server report it.
+ALLOWED_ACTIONS: set = set()
 
 
 @dataclass
@@ -33,7 +39,7 @@ class SkillResult:
 
 
 class AlontitoBot:
-    """Thin, guarded binding to the existing bot stack."""
+    """Thin, guarded binding to the existing perception stack (read-only)."""
 
     def __init__(self):
         self.adapter = None
@@ -97,8 +103,37 @@ class AlontitoBot:
             return SkillResult("health", False, f"ошибка: {e}",
                                seconds=time.time() - t0, error=str(e))
 
+    def inspect(self, force_fresh: bool = True) -> dict:
+        """Structured vision state for the MCP tools (read-only).
+
+        force_fresh=False reuses the last health probe; True does a new read.
+        Both paths never click and never raise the game window.
+        """
+        cached = dict(getattr(self, "_last_inspect", {}) or {})
+        if not force_fresh and cached:
+            return cached
+        probe = self.health()
+        result = {
+            "success": probe.success,
+            "detail": probe.detail,
+            "evidence": probe.evidence,
+            "metrics": probe.metrics,
+            "seconds": round(probe.seconds, 2),
+        }
+        self._last_inspect = result
+        return result
+
+    def capture_frame(self):
+        """One PNG frame of the Roblox window (or None). Read-only capture:
+        the window is not raised, nothing is clicked."""
+        try:
+            self.build()
+            return self.eye.capture()
+        except Exception:
+            return None
+
     def observe(self) -> SkillResult:
-        """One structured scene. Read-only, never clicks."""
+        """One structured scene. Read-only, never clicks, never raises the window."""
         t0 = time.time()
         try:
             adapter, _ = self.build()
@@ -125,98 +160,13 @@ class AlontitoBot:
             return SkillResult("observe", False, f"ошибка: {e}",
                                seconds=time.time() - t0, error=str(e))
 
-    def close_dialog(self) -> SkillResult:
-        t0 = time.time()
-        try:
-            adapter, _ = self.build()
-            handled = adapter.actions.handle_popups()
-            closed = adapter.actions.close_modal_safe()
-            return SkillResult("close_dialog", bool(handled or closed),
-                               handled or ("закрыто" if closed else "диалога нет"),
-                               seconds=time.time() - t0)
-        except Exception as e:
-            return SkillResult("close_dialog", False, f"ошибка: {e}",
-                               seconds=time.time() - t0, error=str(e))
-
-    def train(self, sets: int = 3, on_event: Optional[Callable] = None,
-              action_name: str = "TRAIN_DUMBBELLS", reps: Optional[int] = None) -> SkillResult:
-        """Train in verified sets. Refuses on a non-game frame or open dialog."""
-        from config import LIFTS_PER_SET
-        from games.game_adapter import GameAction
-
-        lifts_count = reps if reps is not None else LIFTS_PER_SET
-        t0 = time.time()
-        rows: List[Dict] = []
-        verified_gain = 0
-        verified_sets = 0
-
-        try:
-            adapter, _ = self.build()
-            actions = adapter.actions
-            before = actions.read_strength()
-
-            for i in range(1, max(1, sets) + 1):
-                state = adapter.observe()
-                dialogs = 0
-                while state.modal_open and dialogs < 2:
-                    actions.handle_popups()
-                    time.sleep(0.6)
-                    actions.close_modal_safe()
-                    time.sleep(0.4)
-                    state = adapter.observe()
-                    dialogs += 1
-
-                action = GameAction(name=action_name,
-                                    description=action_name.replace("_", " ").title(),
-                                    category="train")
-                if action.name not in ALLOWED_ACTIONS:
-                    return SkillResult(action_name.lower(), False,
-                                       f"действие {action.name} запрещено политикой",
-                                       seconds=time.time() - t0)
-                res = adapter.execute_action(action, state)
-                gain = res.metrics_delta.get("strength")
-                if gain is not None and gain > 0:
-                    verified_gain += int(gain)
-                    verified_sets += 1
-                row = {"set": i, "success": res.success, "gain": gain,
-                       "detail": res.detail, "sec": round(res.cost_seconds, 1),
-                       "error": res.error}
-                rows.append(row)
-                if on_event:
-                    on_event(row)
-
-            after = actions.read_strength()
-            total = (after - before) if None not in (before, after) else None
-            seconds = time.time() - t0
-            skill_tag = "train" if action_name == "TRAIN_DUMBBELLS" else action_name.lower()
-            if verified_sets == 0:
-                return SkillResult(
-                    skill_tag, False,
-                    "ни один подход не подтверждён (бейдж не читался или игра "
-                    "игнорировала повторы)", reward=None, seconds=seconds,
-                    metrics={"before": before, "after": after},
-                    rows=rows, error="unverified")
-            detail = (f"{verified_sets}/{sets} подходов подтверждены, "
-                      f"+{verified_gain:,} силы")
-            if total is not None and total != verified_gain:
-                detail += f" (граница окна: {total:+,})"
-            return SkillResult(skill_tag, True, detail, reward=verified_gain,
-                               seconds=seconds, evidence=STATUS_MEASURED,
-                               metrics={"before": before, "after": after,
-                                        "reps_per_set": lifts_count,
-                                        "strength_per_min":
-                                            round(verified_gain / seconds * 60)
-                                            if seconds else None},
-                               rows=rows)
-        except Exception as e:
-            skill_tag = "train" if action_name == "TRAIN_DUMBBELLS" else action_name.lower()
-            return SkillResult(skill_tag, False, f"ошибка: {e}",
-                               seconds=time.time() - t0, error=str(e), rows=rows)
-
 
 def guard_report() -> List[str]:
     """What the agent is structurally forbidden to do, for /safety."""
     return [
+        "играть за пользователя: тренировать, кликать, ходить, закрывать диалоги — "
+        "ввод в игру отключён (config.GAME_INPUT_ENABLED = False)",
+        "поднимать, разворачивать и перетаскивать окно Roblox во время наблюдения",
         "покупать за реальные деньги / Robux / гемы, купленные за Robux",
         "принимать или отправлять трейды",
         "тратить предметы и бусты без разрешения",

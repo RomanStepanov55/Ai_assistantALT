@@ -11,8 +11,13 @@ Recalibrated 05.11.2026 on a 1920x1050 windowed-maximized client.
      BENEFITS, TRADE, or anything that can lead to a Robux/payment page.
  Enforced by ALLOWED_CLICK_ROIS whitelist in InputController.click_roi:
  any ROI not in the whitelist is refused, no exceptions.
+
+HARD RULE #2 (user decision, 2026-11-24): the agent NEVER plays for the user.
+GAME_INPUT_ENABLED is False; InputController refuses every key, button and
+cursor move (see GAME_INPUT_ENABLED below).
 ============================================================================
 """
+import json
 import os
 from pathlib import Path
 
@@ -113,6 +118,48 @@ ROIS = {
     "e_prompt":         {"x": 0.290, "y": 0.430, "w": 0.090, "h": 0.100},  # 'E' interact prompt (machine nearby)
     "machine_info":     {"x": 0.160, "y": 0.400, "w": 0.320, "h": 0.180},  # machine name text (Bench Press / Treadmill...)
 }
+
+
+# ---------------------------------------------------------------------------
+# EXTERNAL ROI CALIBRATION: recalibrate WITHOUT editing this file.
+#   copy config_rois.json.example -> config_rois.json and edit numbers, or
+#   point the ALONTITO_ROIS env var at any JSON file {"roi_name": {...}}.
+# This is for READING the HUD on another resolution or window layout. It does
+# not widen anything: ALLOWED_CLICK_ROIS stays as written below.
+# ---------------------------------------------------------------------------
+def _load_roi_overrides() -> dict:
+    candidates = [BASE_DIR / "config_rois.json"]
+    env_path = os.environ.get("ALONTITO_ROIS")
+    if env_path:
+        candidates.append(Path(env_path))
+    merged: dict = {}
+    for candidate in candidates:
+        try:
+            if candidate.exists():
+                data = json.loads(candidate.read_text(encoding="utf-8"))
+                if isinstance(data, dict):
+                    merged.update({k: v for k, v in data.items()
+                                   if isinstance(v, dict)})   # ключи-пояснения не ROI
+        except Exception as e:
+            print(f"[CONFIG] ROI override '{candidate}' ignored: {e}")
+    return merged
+
+
+_ROI_OVERRIDES = _load_roi_overrides()
+if _ROI_OVERRIDES:
+    ROIS.update(_ROI_OVERRIDES)
+    print(f"[CONFIG] {len(_ROI_OVERRIDES)} ROI entries overridden from file/env")
+
+# ---------------------------------------------------------------------------
+# HARD RULE #2 (user decision, 2026-11-24): THE AGENT NEVER PLAYS FOR THE USER.
+# It watches, learns and consults; it does not train, click, walk or spend.
+# With this False, InputController refuses EVERY key, mouse button and cursor
+# move at the single point where they reach Windows, so no command, panel,
+# voice phrase or MCP call can send input to the game. Turning it back on is a
+# product decision to be made by the user in writing, not a debugging step.
+# ---------------------------------------------------------------------------
+GAME_INPUT_ENABLED = False
+
 
 # The ONLY ROIs the bot may ever click. Everything else is refused by GUARD.
 ALLOWED_CLICK_ROIS = {

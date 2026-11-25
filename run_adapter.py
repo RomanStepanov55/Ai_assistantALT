@@ -30,6 +30,8 @@ from rebirth import RebirthDriver
 from games.muscle_legends import MuscleLegendsAdapter
 from brain.adapter_policy import choose_action
 
+import config
+
 HEARTBEAT_SEC = 10.0
 SLOW_OBSERVE_SEC = 5.0
 
@@ -75,6 +77,16 @@ def build_adapter_stack():
 
 
 def main():
+    # HARD RULE #2 (user decision, 2026-11-24): the agent never plays for the
+    # user. build_adapter_stack() stays available for READ-ONLY observation
+    # (alontito/skills.py), but the action-driving loop is closed.
+    if not config.GAME_INPUT_ENABLED:
+        print("=" * 65)
+        print("   ЗАПУЩЕНО ПРАВИЛОМ 2026-11-24: агент не играет за пользователя.")
+        print("   Этот раннер выполнял действия в игре - он закрыт.")
+        print("   Наблюдение: python main.py --watch / --monitor / run_action.py --observe")
+        print("=" * 65)
+        return 2
     parser = argparse.ArgumentParser(description="Universal Roblox GameAdapter runner")
     parser.add_argument("--max-actions", type=int, default=0,
                         help="Stop after N executed actions (0 = forever)")

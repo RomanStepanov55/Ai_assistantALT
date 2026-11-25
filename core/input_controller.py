@@ -5,11 +5,27 @@ Never uses ESC key to avoid opening the Roblox system menu.
 
 GOLDEN RULE enforcement lives here: click_roi() refuses any ROI that is not
 in config.ALLOWED_CLICK_ROIS -> purchase/billing UI can never be clicked.
+
+HARD RULE #2 (2026-11-24): the agent never plays for the user. Every key, mouse
+button and cursor move passes through _guard(), which raises GameInputDisabled
+while config.GAME_INPUT_ENABLED is False. This is the single choke point for
+input in the whole project: the legacy drivers below are kept for reference
+and tests, but none of them can reach the game.
 """
 import ctypes
 import time
 from typing import Union
+
+import config
 from config import SCAN_CODES, ROIS, ALLOWED_CLICK_ROIS, CURSOR_SAFE_POINT
+
+
+class GameInputDisabled(RuntimeError):
+    """No input can be sent: config.GAME_INPUT_ENABLED is False (HARD RULE #2)."""
+
+    def __init__(self, what: str):
+        super().__init__(f"ввод в игру отключён ({what}): агент не играет "
+                         f"за пользователя")
 
 INPUT_MOUSE = 0
 INPUT_KEYBOARD = 1
@@ -67,9 +83,18 @@ class INPUT(ctypes.Structure):
 
 class InputController:
     def __init__(self):
+        from core.platform import require_windows
+        require_windows("ввод в игру (DirectInput)")
         self.user32 = ctypes.windll.user32
 
+    @staticmethod
+    def _guard(what: str) -> None:
+        """HARD RULE #2: read the flag at call time, never at import time."""
+        if not config.GAME_INPUT_ENABLED:
+            raise GameInputDisabled(what)
+
     def _send_input(self, input_obj: INPUT):
+        self._guard("клавиша или кнопка мыши")
         self.user32.SendInput(1, ctypes.byref(input_obj), ctypes.sizeof(INPUT))
 
     def key_down(self, key_name: str):
@@ -104,10 +129,12 @@ class InputController:
         self.key_up(key_name)
 
     def move_cursor_to(self, screen_x: int, screen_y: int):
+        self._guard("курсор")
         self.user32.SetCursorPos(screen_x, screen_y)
 
     def center_cursor(self, wm):
         """Parks the cursor on the safe center point (over the character)."""
+        self._guard("курсор (center_cursor)")
         sx, sy = wm.to_screen_coords(CURSOR_SAFE_POINT["x"], CURSOR_SAFE_POINT["y"])
         self.move_cursor_to(sx, sy)
         time.sleep(0.03)
@@ -222,7 +249,7 @@ class InputController:
         dx = speed
         for _ in range(steps):
             cx += dx
-            user32.SetCursorPos(cx, cy)
+            self.move_cursor_to(cx, cy)      # через _guard, не в обход
             time.sleep(0.05)
         inp.union.mi.dwFlags = MOUSEEVENTF_RIGHTUP
         self._send_input(inp)
@@ -239,7 +266,9 @@ class InputController:
         Clicks the center of a named UI button.
         GUARD: refuses any ROI not whitelisted in config.ALLOWED_CLICK_ROIS
         (store, autolift, codes, trade, clans, moves... can never be clicked).
+        HARD RULE #2 fires first: no click at all while game input is disabled.
         """
+        self._guard(f"click_roi({roi_name})")
         roi = ROIS.get(roi_name)
         if not roi:
             return False

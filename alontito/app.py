@@ -1,11 +1,13 @@
-"""Alontito - a terminal brain for a Roblox bot.
+"""Alontito - a terminal brain for the Roblox companion.
 
-One application, one prompt: pick a game, launch it, watch the agent, let it
-train, and read what it learned. Every number shown here comes from a read or
-a measurement; when there is no number, the app says so instead of printing 0.
+One application, one prompt: pick a game, launch it (official link), watch the
+USER's play, and read what was measured. Alontito does not play for the user
+(HARD RULE #2, 2026-11-24): input to the game is disabled at the
+InputController level. Every number shown here comes from a read or a
+measurement; when there is no number, the app says so instead of printing 0.
 
 Commands are listed in /help. Free text is routed by brain.interpret() when it
-is obvious ("запусти игру", "тренируйся"), and refused when it is not.
+is obvious ("запусти игру", "что видишь"), and refused when it is not.
 """
 import json
 import os
@@ -24,7 +26,7 @@ from .ui import (Timer, box, clear_screen, clip, err, home_screen, info, ok,
                  paint, prompt, ready, say, set_background, step, table,
                  term_width, two_columns, warn, blank)
 
-VERSION = "1.5.0"
+VERSION = "1.6.0"
 
 HOME_COMMANDS = [
     ("/help", "справка"),
@@ -33,7 +35,6 @@ HOME_COMMANDS = [
     ("/auto", "автопоиск игры"),
     ("/attach", "проверить HUD"),
     ("/status", "замер сейчас"),
-    ("/train", "тренировка"),
     ("/watch", "наблюдение"),
     ("/learn", "улучшение"),
     ("/memory", "факты"),
@@ -115,7 +116,6 @@ class App:
             "/auto": self.cmd_auto,
             "/attach": self.cmd_attach,
             "/status": self.cmd_status,
-            "/train": self.cmd_train,
             "/watch": self.cmd_watch,
             "/learn": self.cmd_learn,
             "/memory": self.cmd_memory,
@@ -205,7 +205,7 @@ class App:
             step(f"выбранная игра обновлена: {game.name}")
 
         self.health = {"is_game": True}
-        info("дальше: /status — числа, /train 2 — тренировка")
+        info("дальше: /status — числа, /watch — наблюдение за твоей игрой")
         blank()
 
     def cmd_auto(self, args):
@@ -241,10 +241,9 @@ class App:
                 ("/play <ключ|id>", "официальная ссылка"),
                 ("/auto", "автопоиск: Roblox и плейс"),
                 ("/attach", "доказать HUD в кадре"),
-                ("/status", "замер: сила, гемы"),
-                ("/train [подходы]", "гантели, с замером"),
-                ("/watch [секунды]", "наблюдение без действий"),
-                ("/learn", "одно улучшение"),
+    ("/status", "замер: сила, гемы"),
+    ("/watch [секунды]", "наблюдение без действий"),
+    ("/learn", "одно улучшение"),
                 ("/memory [слово]", "факты и статусы"),
                 ("/skills", "успех и прирост/мин"),
                 ("/journal [n]", "события журнала"),
@@ -261,8 +260,8 @@ class App:
                 ("/quit", "выход"),
             ], width - 6),
             "",
-            paint("Почему не «просто нажми кнопку»: сила читается из HUD, и "
-                  "подход без подтверждённого числа не считается успехом.",
+            paint("Почему не «просто нажми кнопку»: Алонтито не играет за тебя "
+                  "(2026-11-24) — он смотрит на твою игру и подсказывает.",
                   "muted", dim=True),
         ], width=width))
         blank()
@@ -388,98 +387,6 @@ class App:
             step(f"подсказка: {decision.parameters['hint']}")
         blank()
 
-    # ------------------------------------------------------------------ train
-
-    def cmd_train(self, args):
-        params = self.brain.development().get("params", {})
-        sets = 3
-        if args:
-            try:
-                sets = max(1, min(20, int(args[0])))
-            except ValueError:
-                err("количество подходов должно быть числом")
-                return
-        else:
-            sets = params.get("sets", 3)
-
-        action_name = params.get("action", "TRAIN_DUMBBELLS")
-        reps = params.get("reps", 20)
-
-        blank()
-        res, secs = self._probe()        # no blind training: measure first
-        if not res.success:
-            err(f"тренировка отменена: {res.detail}. Клики в чужое окно "
-                f"запрещены.")
-            blank()
-            return
-        if self.health.get("strength") is None:
-            err("тренировка отменена: сила не читается — прирост нельзя будет "
-                "подтвердить, а неподтверждённый подход не считается успехом")
-            blank()
-            return
-
-        before = self.health.get("strength")
-        info(f"HUD подтверждён за {secs:.1f}s · сила {before:,}")
-        info(f"план: {sets} подход(ов) по {reps} повторов, действие {action_name} "
-             f"(разрешено: {sorted(ALLOWED_ACTIONS)})")
-        blank()
-
-        def on_event(row):
-            mark = "✔" if row.get("success") else "✖"
-            gain = row.get("gain")
-            gain_text = (f"+{gain:,}" if isinstance(gain, int) and gain > 0
-                         else "нет числа")
-            colour = "green" if row.get("success") else "yellow"
-            sys.stdout.write(
-                "  " + paint(mark, colour, bold=True) +
-                f" подход {row['set']}/{sets}  " +
-                paint(f"{gain_text:>12}", colour) +
-                f"  {row['sec']:>5}s  " +
-                paint(row.get("detail") or row.get("error") or "", "muted") +
-                "\n")
-            sys.stdout.flush()
-
-        with Timer() as t:
-            res = self.bot.train(sets=sets, on_event=on_event,
-                                 action_name=action_name, reps=reps)
-
-        blank()
-        skill_tag = "train" if action_name == "TRAIN_DUMBBELLS" else action_name.lower()
-        if res.success:
-            ok(res.detail)
-            self.memory.record_skill(skill_tag, True, reward=res.reward or 0,
-                                     seconds=res.seconds,
-                                     notes=f"{sets} подходов")
-            self.memory.record_run(res.reward, res.seconds,
-                                   note=f"{skill_tag} {sets}x{reps}")
-        else:
-            warn(res.detail)
-            self.memory.record_skill(skill_tag, False, reward=0,
-                                     seconds=res.seconds, error=res.error)
-
-        verdict = self.brain.reflect(skill_tag, before,
-                                     res.metrics.get("after"), t.seconds)
-        blank()
-        say(box("РЕФЛЕКСИЯ", [
-            verdict.text,
-            "",
-            paint(f"вердикт: {verdict.verdict} · базовая линия: "
-                  f"{verdict.baseline if verdict.baseline else 'ещё не задана'}",
-                  "muted"),
-        ], width=term_width(),
-            color="green" if verdict.verdict == "лучше" else "yellow"))
-        if verdict.rollback:
-            warn("изменение ухудшило результат — откатывай правку, не оставляй "
-                 "«вроде работает»")
-        blank()
-
-        proposal = self.brain.propose()
-        if proposal:
-            info(f"следующее улучшение (одно): {proposal['change']}")
-            step(f"проблема: {proposal['problem']} · метрика: {proposal['metric']}")
-            step(f"откат: {proposal['rollback']}")
-            blank()
-
     # ------------------------------------------------------------------ watch
 
     def cmd_watch(self, args):
@@ -554,14 +461,14 @@ class App:
             "",
             table(["время", "прирост", "в мин", "сек", "заметка"], rows,
                   width=term_width() - 8)
-            if rows else "прогонов пока нет — сначала /train или /watch",
+            if rows else "прогонов пока нет — сначала /watch 60",
         ], width=term_width()))
         blank()
 
         proposal = self.brain.propose()
         if proposal is None:
-            info("улучшений не предлагаю: недостаточно замеров. Нужен хотя бы "
-                 "один подтверждённый подход (/train 1).")
+            info("своих улучшений не предлагаю: Алонтито не играет, ему нечего "
+                 "менять в игре. Замеры идут из /watch — твоей игры.")
         else:
             say(box("ОДНО УЛУЧШЕНИЕ ЗА ИТЕРАЦИЮ", [
                 f"проблема:  {proposal['problem']}",

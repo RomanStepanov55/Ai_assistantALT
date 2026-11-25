@@ -51,9 +51,37 @@ class Watcher:
             state["roblox_found"] = False
         else:
             state["roblox_found"] = True
-            # Capture sees whatever is on top of the screen -> raise the game first.
-            self.wm.ensure_focused()
+            # HARD RULE #2 (2026-11-24): passive observation. The old line
+            # self.wm.ensure_focused() raised and dragged the Roblox window to
+            # the front (ALT keypress, minimize/restore); the companion must
+            # not steal the user's desktop.
             frame = self.eye.capture_full_window()
+
+            # The window is no longer raised, so whatever is on top may be
+            # captured instead (the terminal itself, a browser...). Without
+            # the HUD badge plates in THIS frame the read proves nothing -
+            # the same proof Eye uses (E-009): no numbers are produced at all.
+            if not self.frame_is_game(frame):
+                state["game_visible"] = False
+                state["strength_raw"] = ""
+                state["strength"] = None
+                state["gems_raw"] = ""
+                state["gems"] = None
+                state["event_text"] = ""
+                state["events"] = []
+                state["modal_open"] = False
+                state["modal_hits"] = []
+                state["gift_ready"] = False
+                state["near_machine"] = False
+                state["likely_dead"] = False     # a covered window is not a death
+                state["motion"] = None
+                self._dead_streak = 0
+                self.last_state = state
+                if save:
+                    self._save_state(state)
+                    self._append_journal(state)
+                return state
+            state["game_visible"] = True
 
             # 1. Top HUD stats (template reader inside detector handles quality)
             str_crop = self.eye.get_roi_crop("strength_counter", frame)
@@ -153,6 +181,18 @@ class Watcher:
             self._append_journal(state)
         return state
 
+    def frame_is_game(self, frame) -> bool:
+        """Proof that THIS frame shows the game HUD: badge plates found in the
+        current frame (E-009). A saved layout is not evidence, an occluded
+        window is not a game."""
+        if frame is None:
+            return False
+        try:
+            from vision.template_reader import locate_badges
+            return bool(locate_badges(frame))
+        except Exception:
+            return False
+
     def ocr_parse_templates(self, crop, ink, gems: bool = False):
         from vision.template_reader import TemplateReader
         if not hasattr(self, "_treader"):
@@ -176,6 +216,9 @@ class Watcher:
         try:
             if not state.get("roblox_found"):
                 line = f"[{state['time']}] Roblox window NOT found.\n"
+            elif not state.get("game_visible", True):
+                line = (f"[{state['time']}] NO-GAME-HUD: window found, but the frame "
+                        f"shows no game (covered by another window or not in a game).\n")
             else:
                 str_txt = state.get("strength_raw") or "?"
                 gems_txt = state.get("gems_raw") or "-"

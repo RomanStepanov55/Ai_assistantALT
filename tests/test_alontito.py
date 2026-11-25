@@ -100,21 +100,23 @@ class TestPlanning(unittest.TestCase):
         decision = self.brain.plan({"is_game": False}, attached=True)
         self.assertEqual(decision.action, "wait")
 
-    def test_dialog_is_closed_before_training(self):
+    def test_dialog_means_wait_not_clicking(self):
+        # HARD RULE #2: Алонтито не кликает — диалог закрывает пользователь
         decision = self.brain.plan({"is_game": True, "modal_open": True,
                                     "strength": 5_000_000}, attached=True)
-        self.assertEqual(decision.action, "close_dialog")
+        self.assertEqual(decision.action, "wait")
+        self.assertIn("сам", decision.reason)
 
     def test_unreadable_strength_means_observe_not_train(self):
         decision = self.brain.plan({"is_game": True, "modal_open": False,
                                     "strength": None}, attached=True)
         self.assertEqual(decision.action, "observe")
 
-    def test_healthy_scene_trains(self):
+    def test_healthy_scene_means_watch_never_train(self):
         decision = self.brain.plan({"is_game": True, "modal_open": False,
                                     "strength": 5_000_000}, attached=True)
-        self.assertEqual(decision.action, "train")
-        self.assertEqual(decision.parameters.get("action"), "TRAIN_DUMBBELLS")
+        self.assertEqual(decision.action, "watch")
+        self.assertNotIn(decision.action, ("train", "close_dialog"))
 
     def test_no_proposal_without_measurements(self):
         self.assertIsNone(self.brain.propose())
@@ -127,9 +129,14 @@ class TestIntentRouting(unittest.TestCase):
 
     def test_obvious_phrases_route(self):
         self.assertEqual(interpret("запусти игру"), "/play")
-        self.assertEqual(interpret("тренируйся"), "/train")
         self.assertEqual(interpret("что видишь?"), "/watch")
         self.assertEqual(interpret("как дела"), "/status")
+
+    def test_playing_phrases_do_not_route_to_an_action(self):
+        # "тренируйся" и подобные больше ни на что не отображаются: игра вернулась
+        # пользователю. Интерпретатор честно отвечает None.
+        for phrase in ("тренируйся", "качай гантели", "сделай подход"):
+            self.assertNotEqual(interpret(phrase), "/train")
 
     def test_unknown_phrase_is_refused(self):
         self.assertIsNone(interpret("сколько стоит луна"))
@@ -137,8 +144,9 @@ class TestIntentRouting(unittest.TestCase):
 
 
 class TestGuards(unittest.TestCase):
-    def test_only_two_actions_are_allowed(self):
-        self.assertEqual(ALLOWED_ACTIONS, {"TRAIN_DUMBBELLS", "CLOSE_MODAL"})
+    def test_no_game_actions_are_allowed(self):
+        # HARD RULE #2 (2026-11-24): наблюдение вместо игры
+        self.assertEqual(ALLOWED_ACTIONS, set())
 
     def test_spending_and_trading_are_named_as_forbidden(self):
         text = " ".join(guard_report()).lower()

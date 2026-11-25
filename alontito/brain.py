@@ -1,40 +1,39 @@
-"""The brain of Alontito: decide, measure, reflect, keep what works.
+"""The brain of Alontito: decide, measure, reflect.
 
 Three jobs, nothing else:
 
   plan()      - what is the single next thing to do, and WHY (with evidence)
   reflect()   - compare a measured run with the baseline before it
-  propose()   - the one improvement the data currently supports
+  summary()   - what is known from the recorded runs
 
-The Agent Builder rule is enforced structurally: reflect() returns WORSE and
-propose() refuses when there is no measurement. A guess never becomes a
-"improvement" here, because a wrong change that looks good in a log is worse
-than no change at all.
+HARD RULE #2 (2026-11-24): Alontito does not play, so plan() never proposes
+an action in the game - only launch (official link), wait, observe, watch or
+ask. The numbers it reflects on come from watching the USER's play (/watch),
+not from its own actions: "не смог измерить ≠ получилось" still applies, and
+a guess never becomes an "improvement" here.
 """
 import time
 from dataclasses import dataclass, field
 from typing import Dict, List, Optional
 
-from .memory import (MISSING, STATUS_CONTRADICTION, STATUS_HYPOTHESIS,
+from .memory import (MISSING, STATUS_CONTRADICTION,
                      STATUS_MEASURED, STATUS_UNCONFIRMED, Memory)
-from .selfdev import (add_lesson, get_active_params, next_skill_name,
-                      note_verdict, register_proposal, status as selfdev_status)
+from .selfdev import (add_lesson, note_verdict,
+                      status as selfdev_status)
 
 # A run counts as "the same" as the baseline when it stays inside this band.
 # The HUD rounds strength to two significant digits, which is about +-0.4% at
 # 2.7M, and one set varies by 70k-390k depending on weight, so 10% is the
 # smallest band that is not noise.
 SAME_BAND = 0.10
-# Below this many attempts a success rate is not evidence of anything.
-MIN_ATTEMPTS_FOR_RATE = 3
-# A set that takes longer than this is worth looking at: verified sets run
-# ~25-40 s, blind reads make them 85-115 s.
-SLOW_SET_SECONDS = 90.0
 
 
 @dataclass
 class Decision:
-    action: str                 # launch | observe | watch | close_dialog | train | wait | ask
+    # HARD RULE #2 (2026-11-24): "train" and "close_dialog" are no longer
+    # decisions Alontito can make. It launches the game for the user, watches,
+    # observes, waits or asks.
+    action: str                 # launch | observe | watch | wait | ask
     reason: str
     evidence: str = STATUS_UNCONFIRMED
     parameters: Dict = field(default_factory=dict)
@@ -94,47 +93,28 @@ class Brain:
 
         if health.get("modal_open"):
             return Decision(
-                "close_dialog",
-                "открыт диалог: он перекрывает область кликов и съедает подходы",
+                "wait",
+                "открыт диалог: закрой его сам — Алонтито не кликает за тебя",
                 STATUS_MEASURED,
+                {"hint": "/status, когда диалог закрыт"},
             )
 
         if not health or health.get("strength") is None:
             return Decision(
                 "observe",
-                "сила не прочитана — сначала нужен читаемый кадр, потом действия",
+                "сила не прочитана — сначала нужен читаемый кадр",
                 STATUS_UNCONFIRMED,
                 {"hint": "/status или /attach"},
             )
 
-        train = self.memory.skill("train")
-        rate = train.success_rate
-        if train.attempts >= MIN_ATTEMPTS_FOR_RATE and rate is not None and rate < 0.6:
-            return Decision(
-                "observe",
-                f"подходы проходят только в {rate * 100:.0f}% случаев "
-                f"({train.successes}/{train.attempts}) — сначала надо понять "
-                f"причину, а не долбить дальше",
-                STATUS_MEASURED,
-                {"hint": "/learn покажет предложение"},
-            )
-
-        if rate is None or rate >= 0.6:
-            preferred = next_skill_name(self.memory.skills()) or "train"
-            params = get_active_params(self.data)
-            cycle = selfdev_status(self.data)
-            extra = ""
-            active = cycle.get("active")
-            if active:
-                extra = f"; открыт эксперимент: {active.get('change')}"
-            return Decision(
-                "train",
-                "HUD читается, диалога нет, предыдущие подходы проходили" + extra,
-                STATUS_MEASURED,
-                {"sets": params.get("sets", 3), "action": params.get("action", "TRAIN_DUMBBELLS"), "skill": preferred},
-            )
-
-        return Decision("observe", "нет данных для решения", STATUS_UNCONFIRMED)
+        # HARD RULE #2 (2026-11-24): a readable scene means "watch", never
+        # "train" or "close_dialog". Those decisions no longer exist here.
+        return Decision(
+            "watch",
+            "HUD читается — наблюдаю за твоей игрой и ничего не нажимаю",
+            STATUS_MEASURED,
+            {"hint": "/watch 60 — минута наблюдения с замером темпа"},
+        )
 
     # ------------------------------------------------------------------
     # reflection
@@ -212,54 +192,11 @@ class Brain:
     def propose(self) -> Optional[Dict]:
         """The ONE change the measurements support, or None.
 
-        Order matters: a real error beats a speed idea, because an error
-        corrupts data while slowness only costs time.
+        Since 2026-11-24 Alontito does not play, so it has no routine of its
+        own to improve (the old proposals were about its training sets). It
+        always answers None; /learn says so instead of inventing a change.
         """
-        train = self.memory.skill("train")
-
-        if train.attempts and "dialog" in (train.last_error or "").lower():
-            return self._proposal(
-                "диалог перекрывает клики",
-                "закрывать диалог до подхода, а не после неудачи",
-                "доля подтверждённых подходов",
-                "если доля не вырастет за 3 подхода — вернуть прежний порядок",
-                STATUS_MEASURED,
-            )
-
-        if train.attempts >= MIN_ATTEMPTS_FOR_RATE and train.success_rate is not None \
-                and train.success_rate < 0.6:
-            return self._proposal(
-                f"подходы проходят {train.successes}/{train.attempts}",
-                "проверять подтверждение экипировки перед первым повтором",
-                "доля подтверждённых подходов",
-                "если доля не вырастет за 3 подхода — откатить проверку",
-                STATUS_HYPOTHESIS,
-            )
-
-        if train.attempts and train.seconds and \
-                train.seconds / train.attempts > SLOW_SET_SECONDS:
-            return self._proposal(
-                f"подход занимает {train.seconds / train.attempts:.0f} с",
-                "считать прирост только из подтверждения внутри подхода",
-                "секунды на подход",
-                "если подтверждённый прирост пропадёт — вернуть внешний замер",
-                STATUS_MEASURED,
-            )
-
-        if not train.attempts:
-            return None
         return None
-
-    def _proposal(self, problem, change, metric, rollback, evidence) -> Dict:
-        item = {"problem": problem, "change": change, "metric": metric,
-                "rollback": rollback, "evidence": evidence,
-                "created": time.time()}
-        self.memory.add_question(f"Улучшение: {change}", metric, rollback)
-        self.memory.journal("proposal", **{k: v for k, v in item.items()
-                                           if k != "created"})
-        register_proposal(self.data, item)
-        self.memory.save()
-        return item
 
     # ------------------------------------------------------------------
     # reporting
@@ -307,10 +244,9 @@ _INTENTS = [
     ("/auto", ("найди игру", "найди роблокс", "автопоиск", "подключись",
                "найди плейс")),
     ("/play", ("запусти", "запуск", "открой игру", "играть", "врубай")),
-    ("/train", ("тренир", "качай", "качнуть", "подход", "гантел", "занимайся")),
     ("/watch", ("смотри", "наблюдай", "понаблюдай", "что видишь", "покажи экран")),
     ("/status", ("статус", "как дела", "проверь", "готов")),
-    ("/learn", ("учись", "развивайся", "улучши", "предложи", "что дальше")),
+    ("/learn", ("учись", "развивайся", "что дальше")),
     ("/memory", ("память", "что знаешь", "факты")),
     ("/skills", ("навык", "умения", "навыки")),
     ("/safety", ("безопас", "правил", "запрещ")),

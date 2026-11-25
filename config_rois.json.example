@@ -1,0 +1,5 @@
+{
+  "_comment": "External ROI calibration for READING the HUD (no code edits). Copy to config_rois.json and edit. Keys match names in config.ROIS; an entry replaces the whole built-in one. Values are normalized to the Roblox client area (0..1). This file never widens what may be clicked: game input is disabled (config.GAME_INPUT_ENABLED).",
+  "strength_counter": {"x": 0.320, "y": 0.015, "w": 0.180, "h": 0.100},
+  "gems_counter":     {"x": 0.503, "y": 0.015, "w": 0.175, "h": 0.100}
+}

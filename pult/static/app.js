@@ -31,7 +31,12 @@
       opts.headers["Content-Type"] = "application/json";
     }
     return fetch(path, opts).then(function (r) {
-      if (r.status === 401) { showLogin("Неверный токен"); throw new Error("auth"); }
+      if (r.status === 401) {
+        // «Неверный токен» только после реальной попытки: при первом входе
+        // без токена экран входа молчит, а не обвиняет пользователя заранее
+        if (TOKEN) showLogin("Неверный токен");
+        throw new Error("auth");
+      }
       return r.json();
     });
   }
@@ -123,8 +128,18 @@
 
   // ---- actions (только чтение: HUD и наблюдение сцены) -----------------------
   function showResult(obj) {
-    document.getElementById("action-result").textContent =
-      typeof obj === "string" ? obj : JSON.stringify(obj, null, 2);
+    var head = document.getElementById("action-headline");
+    var box = document.getElementById("action-result");
+    var isResult = obj && typeof obj === "object" && ("ok" in obj);
+    // сначала - понятная строка: что произошло и почему
+    head.textContent = isResult
+      ? (obj.ok ? "✔ " : "✖ ") + (obj.detail || obj.error || (obj.ok ? "готово" : "не получилось"))
+      : "";
+    head.className = "headline " + (isResult && obj.ok ? "ok" : "bad") +
+                     (isResult ? "" : " hidden");
+    // подробности - мелким текстом под ней, для тех, кому нужен JSON
+    box.textContent = typeof obj === "string" ? obj : JSON.stringify(obj, null, 2);
+    box.classList.remove("hidden");
   }
   document.querySelectorAll(".act[data-action]").forEach(function (b) {
     b.onclick = function () {

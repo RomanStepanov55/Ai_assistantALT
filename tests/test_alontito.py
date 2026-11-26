@@ -380,5 +380,62 @@ class TestSkillsSafety(unittest.TestCase):
         self.assertNotIn(0, res.metrics.values())
 
 
+class TestObserveHonesty(unittest.TestCase):
+    """«Наблюдать сцену» без игры не отвечает силой 0: ноль - это данные,
+    а их тут нет (E-001). Найдено живой проверкой пульта 26.11."""
+
+    def _bot(self, attached, scene_metrics, modal_open=False, events=()):
+        bot = AlontitoBot()
+        scene = mock.Mock()
+        scene.metrics = scene_metrics
+        scene.modal_open = modal_open
+        scene.events = events
+        adapter = mock.Mock()
+        adapter.observe.return_value = scene
+        with mock.patch.object(bot, "build", return_value=(adapter, None)), \
+             mock.patch.object(bot, "is_attached", return_value=attached):
+            return bot.observe()
+
+    def test_no_window_is_a_refusal_not_zeros(self):
+        res = self._bot(attached=False, scene_metrics={})
+        self.assertFalse(res.success)
+        self.assertIn("не найдено", res.detail)
+        self.assertNotIn("0", res.detail.replace("0,0", ""))
+
+    def test_attached_but_unreadable_frame_is_not_zeros(self):
+        res = self._bot(attached=True, scene_metrics={"strength": None, "gems": None})
+        self.assertTrue(res.success)
+        self.assertIn("HUD", res.detail)
+        self.assertIsNone(res.metrics.get("strength"))
+        self.assertEqual(res.evidence, STATUS_UNCONFIRMED)
+
+    def test_readable_frame_reports_numbers(self):
+        res = self._bot(attached=True, scene_metrics={"strength": 3_110_000,
+                                                      "gems": 16_100_000})
+        self.assertTrue(res.success)
+        self.assertIn("сила", res.detail)
+        self.assertIn("3,110,000", res.detail)
+        self.assertEqual(res.metrics.get("strength"), 3_110_000)
+        self.assertEqual(res.evidence, STATUS_MEASURED)
+
+    def test_adapter_does_not_fabricate_zeros(self):
+        from games.muscle_legends import MuscleLegendsAdapter
+        adapter = object.__new__(MuscleLegendsAdapter)
+        adapter._state_cache = None
+        adapter._state_ts = 0.0
+        adapter.watcher = mock.Mock()
+        adapter.watcher.observe.return_value = {
+            "roblox_found": False, "strength": None, "gems": None,
+            "likely_dead": False, "events": [], "modal_open": False,
+        }
+        adapter.memory = mock.Mock()
+        adapter.memory.get_rebirths_known.return_value = 0
+        state = adapter.observe()
+        self.assertIsNone(state.metrics["strength"])
+        self.assertIsNone(state.metrics["gems"])
+        # и кеш TTL не прячет следующий честный ответ
+        self.assertIs(state, adapter.observe())
+
+
 if __name__ == "__main__":
     unittest.main()

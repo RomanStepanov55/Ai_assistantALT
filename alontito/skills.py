@@ -133,10 +133,18 @@ class AlontitoBot:
             return None
 
     def observe(self) -> SkillResult:
-        """One structured scene. Read-only, never clicks, never raises the window."""
+        """One structured scene. Read-only, never clicks, never raises the window.
+
+        With no Roblox window this is an honest refusal, not "сила 0": a scene
+        nobody saw proves nothing (E-001)."""
         t0 = time.time()
         try:
             adapter, _ = self.build()
+            if not self.is_attached():
+                return SkillResult(
+                    "observe", False,
+                    "окно Roblox не найдено — наблюдать нечего",
+                    seconds=time.time() - t0)
             scene = adapter.observe()
             metrics = dict(scene.metrics or {})
             detail = []
@@ -150,9 +158,13 @@ class AlontitoBot:
                 detail.append("события: " + ", ".join(scene.events))
             return SkillResult(
                 "observe", True,
-                " · ".join(detail) if detail else "сцена прочитана, чисел нет",
+                " · ".join(detail) if detail else
+                "окно найдено, но HUD в кадре не читается (закрыт другим окном "
+                "или не в игре)",
                 seconds=time.time() - t0,
-                evidence=STATUS_MEASURED if metrics else STATUS_UNCONFIRMED,
+                evidence=STATUS_MEASURED if
+                (metrics.get("strength") is not None or metrics.get("gems") is not None)
+                else STATUS_UNCONFIRMED,
                 metrics={**metrics, "modal_open": scene.modal_open,
                          "events": list(scene.events or [])},
             )

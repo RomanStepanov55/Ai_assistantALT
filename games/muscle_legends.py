@@ -151,8 +151,12 @@ class MuscleLegendsAdapter(GameAdapter):
             timestamp=now,
             is_alive=not scene.get("likely_dead", False),
             metrics={
-                "strength": scene.get("strength", 0),
-                "gems": scene.get("gems", 0),
+                # None when the badge was not read (window closed / covered /
+                # unreadable frame). Fabricating 0 here reported "сила 0 ·
+                # гемы 0" for a game that was never seen - a wrong statement
+                # about what the eye saw (violates E-001: not measured ≠ 0).
+                "strength": scene.get("strength"),
+                "gems": scene.get("gems"),
                 "rebirths": self.memory.get_rebirths_known(),
             },
             events=scene.get("events", []),

@@ -80,6 +80,40 @@ class TestPultSurface(unittest.TestCase):
         self.assertEqual(status, 200)
         self.assertIn("Алонтито не играет", body.decode("utf-8"))
 
+    def test_static_is_quiet_no_slop(self):
+        """Дизайн-контракт: тихий рабочий экран без украшательств (E-023).
+        Градиенты, свечения, стекло и капслок-трекинг здесь не украшение, а
+        признак сгенерированного дашборда."""
+        _, _, _ = self.get("/", token=False)
+        css = (srv.STATIC / "style.css").read_text(encoding="utf-8")
+        html = (srv.STATIC / "index.html").read_text(encoding="utf-8")
+        for needle in ("linear-gradient", "radial-gradient", "text-shadow",
+                       "backdrop-filter", "filter: blur", "drop-shadow"):
+            self.assertNotIn(needle, css, needle)
+            self.assertNotIn(needle, html, needle)
+        self.assertNotIn("text-transform: uppercase", css)
+        # тень в покое запрещена; единственное исключение — плавающий лист меню
+        shadows = [ln for ln in css.splitlines() if "box-shadow" in ln]
+        self.assertLessEqual(len(shadows), 1, shadows)
+
+    def test_appjs_ids_exist_in_html(self):
+        """Каждый id, который читает app.js, обязан быть в разметке — иначе
+        фича молча умирает вместо падения теста."""
+        import re
+        js = (srv.STATIC / "app.js").read_text(encoding="utf-8")
+        html = (srv.STATIC / "index.html").read_text(encoding="utf-8")
+        used = set(re.findall(r'\$\("([A-Za-z0-9_-]+)"\)', js))
+        self.assertTrue(used, "app.js не ссылается ни на один id")
+        missing = sorted(i for i in used if 'id="%s"' % i not in html)
+        self.assertEqual(missing, [])
+
+    def test_static_has_screen_titles(self):
+        _, html, _ = self.get("/", token=False)
+        text = html.decode("utf-8")
+        for h in ("Панель", "Чат", "Терминал", "Память", "Знания"):
+            self.assertIn("<h1", text)
+        self.assertEqual(text.count("<h1"), 5)
+
     def test_data_requires_token(self):
         status, _, _ = self.get("/api/status", token=False)
         self.assertEqual(status, 401)

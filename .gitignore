@@ -39,3 +39,6 @@ data/pult_chat.sqlite3
 data/pult_frame.png
 # external ROI calibration is local to the machine
 config_rois.json
+
+# ZCode session service files
+.zcode/

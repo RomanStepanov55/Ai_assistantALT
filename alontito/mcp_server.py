@@ -359,10 +359,18 @@ class AlontitoMCPServer:
         return None
 
     def run_stdio_loop(self):
-        """Runs standard I/O communication loop for CLI/Desktop client MCP attachment."""
+        """Runs standard I/O communication loop for CLI/Desktop client MCP attachment.
+
+        readline() instead of `for line in sys.stdin`: the iterator reads
+        ahead in blocks and waits for EOF, so a client would hang forever
+        waiting for answers to lines it already sent.
+        """
         self.is_active = True
         try:
-            for line in sys.stdin:
+            while True:
+                line = sys.stdin.readline()
+                if not line:                        # EOF: client closed stdin
+                    break
                 line = line.strip()
                 if not line:
                     continue

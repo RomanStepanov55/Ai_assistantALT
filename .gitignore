@@ -13,32 +13,24 @@ data/alontito_learning.sqlite3
 data/alontito_learning.sqlite3-wal
 data/alontito_learning.sqlite3-shm
 data/curated_training.jsonl
-data/ucb1_explorer_state.json
 data/evaluations/
 tools/auto_generated/
 artifacts/
 
 # Local debug frames and ad-hoc logs (kept on disk, not in git)
-debug_frames/*.png
 *.tmp
 
-# Alontito Control Center
-alontito-app/node_modules/
-alontito-app/.venv/
+# Alontito 2.0 agent state: never committed
 .env
-
-# Alontito v5 runtime state (learning models and panel queues, like ucb1 state)
+config/alontito_brain.json
+data/alontito/devices.json
+data/alontito/automations.json
+data/alontito/inbox/
 data/neuro_lab.json
-data/skill_autonomy.json
-data/panel_commands.json
-data/panel_status.json
 
 # Web Pult runtime files: the token must never be committed
 pult/pult_config.json
 data/pult_chat.sqlite3
-data/pult_frame.png
-# external ROI calibration is local to the machine
-config_rois.json
 
 # ZCode session service files
 .zcode/

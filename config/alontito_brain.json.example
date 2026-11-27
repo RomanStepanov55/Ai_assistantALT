@@ -1,0 +1,17 @@
+{
+  "_comment": "Разъём мозга Алонтито. Скопируйте в alontito_brain.json (файл в .gitignore). Мозг — СВОЙ и только локальный: облачный эндпоинт конфиг-лоадер отклонит.",
+  "own": {
+    "enabled": false,
+    "endpoint": "http://127.0.0.1:11434",
+    "api": "ollama",
+    "model": "alontito-brain",
+    "api_key": "",
+    "max_context_messages": 16
+  },
+  "teacher": {
+    "_comment": "Учитель — скачанная модель, которая помогает готовить обучающие примеры для СВОЕГО мозга. В чат с пользователем она не допускается (тест test_teacher_not_in_runtime).",
+    "enabled": false,
+    "endpoint": "http://127.0.0.1:11434",
+    "model": ""
+  }
+}

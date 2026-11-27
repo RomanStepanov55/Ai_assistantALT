@@ -1,12 +1,13 @@
-"""Alontito - a self-developing terminal agent for the Roblox muscle bot.
+"""Alontito - a personal AI agent and desktop companion.
 
 Modules:
     ui            - ANSI presentation only
     memory        - facts with evidence statuses, skills, runs, journal
-    games_catalog - games by Place ID, official launch, HUD proof
-    skills        - guarded actions the agent may execute
-    brain         - decision, reflection, one-improvement proposals
+    skills        - skill result contract and the structural guard report
+    brain         - reflection, lessons, free-text routing
+    mcp_server    - Model Context Protocol bridge (memory, read-only)
+    pet_terminal  - the 3D desktop companion control
     app           - the interactive shell
 """
 
-__version__ = "0.9"
+__version__ = "2.0"

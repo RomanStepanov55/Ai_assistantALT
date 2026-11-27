@@ -124,13 +124,10 @@ class TestSelfDev(unittest.TestCase):
         dev = brain.development()
         self.assertIn("never lift during dialog", dev["lessons"])
 
-        # Propose registers in selfdev
+        # Since the pivot the agent has no routine of its own: propose()
+        # honestly answers None instead of inventing a change (2026-11-24).
         mem.record_skill("train", False, reward=0, seconds=10.0, error="dialog open")
-        prop = brain.propose()
-        self.assertIsNotNone(prop)
-        dev = brain.development()
-        self.assertIsNotNone(dev["active"])
-        self.assertEqual(dev["active"]["change"], prop["change"])
+        self.assertIsNone(brain.propose())
 
 
 if __name__ == "__main__":

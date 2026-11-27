@@ -66,7 +66,7 @@ class PetTerminal:
         "hiding": ("◌", "выкл…", "yellow", "yellow"),
         "error": ("✖", "ошибка", "red", "red"),
     }
-    _ACT = {"coding": "кодит", "roblox": "Roblox", "portal": "портал", "walk": "гуляет", "sit": "сидит", "rubik": "кубик",
+    _ACT = {"coding": "кодит", "portal": "портал", "walk": "гуляет", "sit": "сидит", "rubik": "кубик",
             "drag": "несут", "fall": "падает", "land": "приземл.", "hidden": "скрыт", "dissolving": "испаряется"}
 
     def badge(self, fmt: str = "plain", verbose: bool = False) -> str:
@@ -229,7 +229,7 @@ class PetTerminal:
             self.ctl.send(cmd=sub)
         elif sub == "play":
             clip = args[1] if len(args) > 1 else ""
-            clip = {"coding": "activity_coding", "rubik": "activity_rubik", "sit": "sit_idle", "roblox": "roblox_watch_back",
+            clip = {"coding": "activity_coding", "rubik": "activity_rubik", "sit": "sit_idle",
                     "panic": "drag_panic", "drop": "drag_drop"}.get(clip, clip)
             if clip not in ALL_CLIPS:
                 say(f"[3D] Клипы: {', '.join(ALL_CLIPS)}")

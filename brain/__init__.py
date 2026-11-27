@@ -1,1 +1,1 @@
-"""Brain module for Roblox: Decision maker, Strategy evaluator, Learning memory"""
+"""Brain module: experience memory, learning engine, reasoning core, planners."""

@@ -1,1 +1,1 @@
-"""Core module for Roblox automation: Window manager, DirectInput controller, Telemetry"""
+"""Core module: platform guards shared by the agent subsystems."""

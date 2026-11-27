@@ -17,8 +17,8 @@ alontito/desktop_pet.py — интерактивный 3D Desktop Pet (маск�
 * Drag & Drop: ЛКМ по персонажу → drag_panic и следование за курсором; отпустил → гравитация
   к нижней кромке экрана (availableGeometry, т.е. над панелью задач) → drag_drop.
 * Испарение (disintegrate) — шейдер растворения + частицы при скрытии/выключении.
-* Трекер активности: Win32 GetForegroundWindow → IDE = activity_coding, Roblox = спиной к пользователю
-  (roblox_watch_back) + периодически «достаёт предметы из портала» (portal_reach_in → portal_eat_drink).
+* Трекер активности: Win32 GetForegroundWindow → IDE = activity_coding; периодически
+  персонаж «достаёт предметы из портала» (portal_reach_in → portal_eat_drink).
 
 Зависимости: PyQt6 + PyQt6-WebEngine (или PySide6). Three.js r160 скачивается при первом запуске в
 alontito/pet3d/vendor/three (или берётся с CDN, если нет сети).
@@ -56,12 +56,12 @@ THREE_VERSION = "0.160.0"
 
 MODES = ("auto", "free", "still")
 MODE_HELP = {
-    "auto": "реагирует на активность: IDE → кодит, Roblox → смотрит спиной и достаёт предметы из портала",
+    "auto": "реагирует на активность: IDE → кодит, простой → живёт своей жизнью",
     "free": "живёт своей жизнью: гуляет, сидит, крутит кубик Рубика, игнорирует окна",
     "still": "спокойный: стоит/сидит на месте, не гуляет и не отвлекается",
 }
 ALL_CLIPS = ("idle", "walk", "sit_idle", "drag_panic", "drag_drop", "activity_coding", "activity_rubik",
-             "roblox_watch_back", "portal_reach_in", "portal_eat_drink", "disintegrate",
+             "portal_reach_in", "portal_eat_drink", "disintegrate",
              "run", "tiptoe", "happy", "laugh", "excited", "sad", "cry", "angry", "annoyed", "surprised", "confused", "curious", "shy", "scared", "proud", "facepalm", "shrug", "clap", "dance", "bow", "point", "sneeze", "cough",
              # v4 (tools/build_pet_clips_v4.py): 16 новых клипов
              "wave", "nod", "shake_head", "sleepy", "fall", "land", "backflip",
@@ -78,16 +78,15 @@ DEFAULT_CONFIG: Dict[str, Any] = {
     "character": "",             # путь к .glb персонажа (пусто = искать в alontito/assets/3d)
     "portal": "",                # путь к .glb портала
     "walk_speed": 95,            # px/с
-    "park_x": 0.82,              # где садится кодить/смотреть Roblox (доля ширины экрана)
+    "park_x": 0.82,              # где садится кодить (доля ширины экрана)
     "portal_interval": [70, 140],  # пауза между «заходами в портал», сек
     "ide_exes": [
         "code.exe", "code - insiders.exe", "cursor.exe", "windsurf.exe", "vscodium.exe", "pycharm64.exe", "pycharm.exe",
         "idea64.exe", "webstorm64.exe", "clion64.exe", "rider64.exe", "goland64.exe", "phpstorm64.exe", "rubymine64.exe",
-        "datagrip64.exe", "devenv.exe", "sublime_text.exe", "notepad++.exe", "atom.exe", "zed.exe", "studio64.exe",
-        "eclipse.exe", "kate.exe", "gvim.exe", "nvim-qt.exe", "robloxstudiobeta.exe",
+        "datagrip64.exe", "devenv.exe", "sublime_text.exe", "atom.exe", "zed.exe", "studio64.exe",
+        "eclipse.exe", "kate.exe", "gvim.exe", "nvim-qt.exe",
     ],
-    "ide_title_hints": ["visual studio code", "pycharm", "intellij idea", "sublime text", "cursor", "roblox studio"],
-    "roblox_exes": ["robloxplayerbeta.exe", "robloxplayer.exe", "windows10universal.exe"],
+    "ide_title_hints": ["visual studio code", "pycharm", "intellij idea", "sublime text", "cursor"],
 }
 
 
@@ -275,7 +274,7 @@ class PetServer:
 # ====================================================================================== трекер активности (Win32)
 @dataclass
 class Activity:
-    kind: str = "other"           # 'coding' | 'roblox' | 'other'
+    kind: str = "other"           # 'coding' | 'other'
     exe: str = ""
     title: str = ""
     user_idle: float = 0.0        # секунд без ввода
@@ -284,10 +283,6 @@ class Activity:
 def classify(exe: str, title: str, cfg: Dict[str, Any]) -> str:
     """Чистая функция: по имени процесса и заголовку окна определяет вид активности."""
     e, t = (exe or "").lower(), (title or "").strip().lower()
-    if e in set(x.lower() for x in cfg.get("roblox_exes", [])):
-        return "roblox"
-    if t == "roblox" and e not in ("", "chrome.exe", "msedge.exe", "firefox.exe", "opera.exe", "brave.exe", "yandex.exe"):
-        return "roblox"                                         # окно игры называется ровно «Roblox»
     if e in set(x.lower() for x in cfg.get("ide_exes", [])):
         return "coding"
     if e and any(h in t for h in cfg.get("ide_title_hints", [])) and e not in ("chrome.exe", "msedge.exe", "firefox.exe"):
@@ -363,7 +358,7 @@ class ActivityTracker:
         return ((w.kernel32.GetTickCount() - info.dwTime) & 0xFFFFFFFF) / 1000.0
 
     def sample(self) -> Activity:
-        fake = os.environ.get("ALONTITO_PET_FAKE_ACTIVITY")      # для отладки: coding | roblox | other
+        fake = os.environ.get("ALONTITO_PET_FAKE_ACTIVITY")      # для отладки: coding | other
         if fake:
             return Activity(kind=fake, exe="fake", title="fake")
         if not self._win:
@@ -381,14 +376,14 @@ def cmd(type_: str, **kw) -> Dict[str, Any]:
     return kw
 
 
-STATE_VIEW = {            # состояние -> (клип, поворот в градусах: 0 к пользователю, 90 вправо, -90 влево, 180 спиной)
+STATE_VIEW = {            # состояние -> (клип, поворот в градусах: 0 к пользователю)
     "idle": ("idle", 0), "sit": ("sit_idle", 0), "coding": ("activity_coding", 14),
-    "rubik": ("activity_rubik", 20), "roblox": ("roblox_watch_back", 180),
+    "rubik": ("activity_rubik", 20),
 }
 CALM_FPS, ACTIVE_FPS = 20, 45   # спокойные состояния 20 FPS, активные до 45 — заметно снижает нагрузку
 FACE_FOR_CLIP = {
     "walk": 90, "run": 90, "tiptoe": 90,
-    "roblox_watch_back": 180, "activity_coding": 14, "activity_rubik": 20,
+    "activity_coding": 14, "activity_rubik": 20,
     "happy": 0, "laugh": 0, "excited": 0, "sad": 0, "cry": 0, "angry": 0,
     "annoyed": 0, "surprised": 0, "confused": 0, "curious": 10, "shy": -8,
     "scared": 0, "proud": 0, "facepalm": 0, "shrug": 0, "clap": 0, "dance": 0,
@@ -398,7 +393,7 @@ FACE_FOR_CLIP = {
 
 class PetBrain:
     """
-    Состояния: hidden → materializing → idle ⇄ walk / sit / rubik / coding / roblox ⇄ portal;
+    Состояния: hidden → materializing → idle ⇄ walk / sit / rubik / coding ⇄ portal;
     drag → fall → land → idle; dissolving → hidden; manual (проиграть клип вручную).
     Не знает про Qt: принимает события/контекст, возвращает список команд (dict) для окна/рендерера.
     """
@@ -460,7 +455,7 @@ class PetBrain:
         out: list = []
         if mode in MODES:
             self.mode = mode
-            if self.state in ("coding", "roblox") and mode != "auto":
+            if self.state == "coding" and mode != "auto":
                 self._enter("idle", now, out)
             if self.state == "walk" and mode == "still":
                 out.append(cmd("stop_walk"))
@@ -500,7 +495,7 @@ class PetBrain:
 
     def portal_now(self, now: float) -> list:
         out: list = []
-        if self.state in ("idle", "sit", "rubik", "coding", "roblox", "walk", "manual"):
+        if self.state in ("idle", "sit", "rubik", "coding", "walk", "manual"):
             self._start_portal(now, out, force=True)
         return out
 
@@ -527,10 +522,8 @@ class PetBrain:
         elif e == "walk_done":
             if self.state == "walk":
                 nxt, self.after_walk = self.after_walk, None
-                if nxt in ("coding", "roblox"):
+                if nxt == "coding":
                     self._enter(nxt, now, out)
-                    if nxt == "roblox":
-                        self.next_portal = min(self.next_portal, now + self.rng.uniform(12, 30))
                 else:
                     self._enter("idle", now, out, hold=self.rng.uniform(3, 8))
         elif e == "portal_done":
@@ -550,7 +543,7 @@ class PetBrain:
 
     # ---------------------------------------------------------------- такт (≈10 Гц)
     def tick(self, now: float, ctx: Dict[str, Any]) -> list:
-        """ctx: activity ('coding'|'roblox'|'other'), user_idle (с), x (центр персонажа, px), xmin, xmax, park_x, portal (bool)."""
+        """ctx: activity ('coding'|'other'), user_idle (с), x (центр персонажа, px), xmin, xmax, park_x, portal (bool)."""
         out: list = []
         self.portal_enabled = bool(ctx.get("portal", True))
         act = ctx.get("activity", "other")
@@ -574,7 +567,7 @@ class PetBrain:
                 self._enter(self.prev_state if self.prev_state in STATE_VIEW else "idle", now, out)
         else:
             # --- реакция на активность пользователя (только режим auto)
-            want = act if (self.mode == "auto" and act in ("coding", "roblox") and stable >= 2.5) else None
+            want = act if (self.mode == "auto" and act == "coding" and stable >= 2.5) else None
             walking_to = self.after_walk if st == "walk" else None
             if want and st != want and walking_to != want:
                 px, cx = float(ctx.get("park_x", ctx.get("x", 0))), float(ctx.get("x", 0))
@@ -582,15 +575,8 @@ class PetBrain:
                     self._start_walk(px, now, out, after=want, cx=cx)
                 else:
                     self._enter(want, now, out)
-                    if want == "roblox":
-                        self.next_portal = min(self.next_portal, now + self.rng.uniform(12, 30))
-            elif st in ("coding", "roblox") and (self.mode != "auto" or (act != st and stable >= 5.0)):
+            elif st == "coding" and (self.mode != "auto" or (act != st and stable >= 5.0)):
                 self._enter("idle", now, out)
-            elif st == "roblox":
-                if now >= self.next_portal and self.portal_enabled:
-                    self._start_portal(now, out)
-            elif st == "coding":
-                pass
             elif st == "walk":
                 if now - self.since > 45:
                     out.append(cmd("stop_walk"))
@@ -1364,7 +1350,7 @@ def run_check() -> int:
         ok = ok and e
     act = ActivityTracker(cfg).sample()
     print(f"[ок]  активное окно: {act.kind} exe={act.exe!r} title={act.title[:40]!r} простой={act.user_idle:.0f}c" if sys.platform == "win32"
-          else "[--]  трекер активности работает только на Windows (Win32); задай ALONTITO_PET_FAKE_ACTIVITY=coding|roblox для проверки")
+          else "[--]  трекер активности работает только на Windows (Win32); задай ALONTITO_PET_FAKE_ACTIVITY=coding для проверки")
     print(f"      конфиг: {CONFIG_PATH if CONFIG_PATH.is_file() else (FALLBACK_CONFIG_PATH if FALLBACK_CONFIG_PATH.is_file() else 'по умолчанию')}")
     return 0 if ok else 1
 

@@ -1,6 +1,10 @@
-# Dependencies for Muscle Legends Autonomous AI Skill
-# (Pillow, numpy, pywin32, psutil are already installed in your Python environment)
-pillow>=10.0.0
-numpy>=1.20.0
-pywin32>=306
-psutil>=5.9.0
+# Alontito 2.0 - personal AI agent. The core (memory, learning, pult, MCP)
+# runs on the standard library alone.
+PyQt6>=6.6          # 3D desktop pet (Qt WebEngine overlay)
+PyQt6-WebEngine>=6.6
+psutil>=5.9.0       # resource governor CPU probe (brain/resource_governor.py)
+
+# Optional: offline voice (brain/voice_chat.py). Without them the voice
+# interface is absent, everything else works.
+# vosk>=0.3.45
+# sounddevice>=0.4.6

@@ -1,19 +1,17 @@
-"""Tests for the Alontito app layer: memory, brain, UI geometry, guards.
+"""Tests for the Alontito core: memory, reflection, UI geometry, guards.
 
-No Roblox, no captures, no input: this file must stay green on a closed laptop.
+No game, no captures, no input: this file stays green on any machine.
 """
-import os
 import tempfile
-import time
 import unittest
 from pathlib import Path
 from unittest import mock
 
-from alontito import games_catalog, ui
+from alontito import ui
 from alontito.brain import Brain, interpret
 from alontito.memory import (MISSING, STATUS_MEASURED, STATUS_UNCONFIRMED,
                              STATUSES, Memory)
-from alontito.skills import ALLOWED_ACTIONS, AlontitoBot, guard_report
+from alontito.skills import ALLOWED_ACTIONS, guard_report
 
 
 def fresh_memory() -> Memory:
@@ -88,55 +86,21 @@ class TestReflection(unittest.TestCase):
         self.assertTrue(verdict.rollback)
 
 
-class TestPlanning(unittest.TestCase):
-    def setUp(self):
-        self.memory = fresh_memory()
-        self.brain = Brain(self.memory)
-
-    def test_no_window_means_launch(self):
-        self.assertEqual(self.brain.plan({}, attached=False).action, "launch")
-
-    def test_non_game_frame_means_wait(self):
-        decision = self.brain.plan({"is_game": False}, attached=True)
-        self.assertEqual(decision.action, "wait")
-
-    def test_dialog_means_wait_not_clicking(self):
-        # HARD RULE #2: Алонтито не кликает — диалог закрывает пользователь
-        decision = self.brain.plan({"is_game": True, "modal_open": True,
-                                    "strength": 5_000_000}, attached=True)
-        self.assertEqual(decision.action, "wait")
-        self.assertIn("сам", decision.reason)
-
-    def test_unreadable_strength_means_observe_not_train(self):
-        decision = self.brain.plan({"is_game": True, "modal_open": False,
-                                    "strength": None}, attached=True)
-        self.assertEqual(decision.action, "observe")
-
-    def test_healthy_scene_means_watch_never_train(self):
-        decision = self.brain.plan({"is_game": True, "modal_open": False,
-                                    "strength": 5_000_000}, attached=True)
-        self.assertEqual(decision.action, "watch")
-        self.assertNotIn(decision.action, ("train", "close_dialog"))
-
-    def test_no_proposal_without_measurements(self):
-        self.assertIsNone(self.brain.propose())
-
-
 class TestIntentRouting(unittest.TestCase):
     def test_commands_pass_through(self):
-        self.assertEqual(interpret("/status"), "/status")
-        self.assertEqual(interpret("  /train 3 "), "/train 3")
+        self.assertEqual(interpret("/memory"), "/memory")
+        self.assertEqual(interpret("  /journal 5 "), "/journal 5")
 
     def test_obvious_phrases_route(self):
-        self.assertEqual(interpret("запусти игру"), "/play")
-        self.assertEqual(interpret("что видишь?"), "/watch")
-        self.assertEqual(interpret("как дела"), "/status")
+        self.assertEqual(interpret("что знаешь?"), "/memory")
+        self.assertEqual(interpret("какие навыки"), "/skills")
+        self.assertEqual(interpret("правила"), "/safety")
 
     def test_playing_phrases_do_not_route_to_an_action(self):
-        # "тренируйся" и подобные больше ни на что не отображаются: игра вернулась
-        # пользователю. Интерпретатор честно отвечает None.
-        for phrase in ("тренируйся", "качай гантели", "сделай подход"):
-            self.assertNotEqual(interpret(phrase), "/train")
+        # Игровой слой удалён: фразы про игру ни на что не отображаются.
+        for phrase in ("запусти игру", "тренируйся", "качай гантели",
+                       "найди роблокс", "открой игру"):
+            self.assertIsNone(interpret(phrase))
 
     def test_unknown_phrase_is_refused(self):
         self.assertIsNone(interpret("сколько стоит луна"))
@@ -145,126 +109,17 @@ class TestIntentRouting(unittest.TestCase):
 
 class TestGuards(unittest.TestCase):
     def test_no_game_actions_are_allowed(self):
-        # HARD RULE #2 (2026-11-24): наблюдение вместо игры
+        # HARD RULE #2 (2026-11-24) + удаление игрового слоя (2026-11-27)
         self.assertEqual(ALLOWED_ACTIONS, set())
 
     def test_spending_and_trading_are_named_as_forbidden(self):
         text = " ".join(guard_report()).lower()
-        for needle in ("robux", "трейд", "esc", "tab", "эксплойт"):
+        for needle in ("robux", "трейд", "эксплойт"):
             self.assertIn(needle, text)
 
-    def test_app_never_exposes_spending_actions(self):
-        bot = AlontitoBot()
-        public = [n for n in dir(bot) if not n.startswith("_")]
-        self.assertNotIn("hatch_egg", public)
-        self.assertNotIn("rebirth", public)
-        self.assertNotIn("pets_maintenance", public)
-
-    def test_catalog_identifies_by_place_id(self):
-        game = games_catalog.find("muscle")
-        self.assertIsNotNone(game)
-        self.assertEqual(game.place_id, 3623096087)
-        self.assertEqual(games_catalog.find("3623096087").place_id, 3623096087)
-        self.assertIsNone(games_catalog.find("несуществующая игра"))
-
-
-class TestPlaceIdentity(unittest.TestCase):
-    def _logs(self, text: str, age_sec: float = 10.0, name: str = "session.log"):
-        tmp = Path(tempfile.mkdtemp(prefix="roblox_logs_"))
-        path = tmp / name
-        path.write_text(text, encoding="utf-8")
-        stamp = time.time() - age_sec
-        os.utime(path, (stamp, stamp))
-        return tmp
-
-    def test_place_is_read_from_the_client_log(self):
-        logs = self._logs("session start\nplaceid:3623096087\n"
-                          "universeid:1268927906\njoining game")
-        found = games_catalog.current_place(logs_dir=logs)
-        self.assertTrue(found["found"])
-        self.assertEqual(found["place_id"], 3623096087)
-        self.assertEqual(found["universe_id"], 1268927906)
-        self.assertIsNotNone(found["game"])
-        self.assertEqual(found["game"].place_id, 3623096087)
-
-    def test_yesterday_log_cannot_identify_today(self):
-        logs = self._logs("placeid:3623096087", age_sec=9 * 3600)
-        found = games_catalog.current_place(logs_dir=logs)
-        self.assertFalse(found["found"])
-        self.assertIn("не подтверждён", found["detail"])
-
-    def test_unknown_place_is_reported_as_unknown_not_guessed(self):
-        logs = self._logs("placeid : 123456789")
-        found = games_catalog.current_place(logs_dir=logs)
-        self.assertTrue(found["found"])
-        self.assertEqual(found["place_id"], 123456789)
-        self.assertIsNone(found["game"])
-
-    def test_missing_logs_folder_is_not_an_exception(self):
-        found = games_catalog.current_place(logs_dir=Path("Z:/definitely/not/here"))
-        self.assertFalse(found["found"])
-
-    def test_autostart_launches_when_nothing_is_running(self):
-        with mock.patch.object(games_catalog, "window_state",
-                               return_value={"found": False}), \
-             mock.patch.object(games_catalog, "current_place",
-                               side_effect=[{"found": False},
-                                            {"found": True, "place_id": 3623096087,
-                                             "game": games_catalog.find("muscle"),
-                                             "log": "x.log", "age_sec": 5}]), \
-             mock.patch.object(games_catalog, "launch",
-                               return_value=(True, "roblox://placeId=3623096087")) as launch, \
-             mock.patch.object(games_catalog, "wait_for_game",
-                               return_value=(True, "HUD игры подтверждён")):
-            result = games_catalog.autostart()
-        self.assertTrue(result["launched"])
-        self.assertTrue(result["attached"])
-        launch.assert_called_once()
-        self.assertIn("подтверждено", result["identity"])
-
-    def test_unknown_running_place_is_not_called_the_preferred_game(self):
-        with mock.patch.object(games_catalog, "window_state",
-                               return_value={"found": True}), \
-             mock.patch.object(games_catalog, "current_place",
-                               return_value={"found": True, "place_id": 123456789,
-                                             "game": None, "log": "x.log",
-                                             "age_sec": 5}), \
-             mock.patch.object(games_catalog, "_hud_visible",
-                               return_value=(True, "HUD")):
-            result = games_catalog.autostart()
-        self.assertTrue(result["attached"])
-        self.assertIsNone(result["game"])          # no name, no guess
-        self.assertEqual(result["place"]["place_id"], 123456789)
-        self.assertIn("подтверждено", result["identity"])
-
-    def test_autostart_does_not_relaunch_a_running_game(self):
-        with mock.patch.object(games_catalog, "window_state",
-                               return_value={"found": True}), \
-             mock.patch.object(games_catalog, "current_place",
-                               return_value={"found": True, "place_id": 3623096087,
-                                             "game": games_catalog.find("muscle"),
-                                             "log": "x.log", "age_sec": 5}), \
-             mock.patch.object(games_catalog, "_hud_visible",
-                               return_value=(True, "HUD игры виден")), \
-             mock.patch.object(games_catalog, "launch") as launch:
-            result = games_catalog.autostart()
-        self.assertTrue(result["attached"])
-        self.assertFalse(result["launched"])
-        launch.assert_not_called()
-
-    def test_open_place_wins_over_the_preferred_one(self):
-        other = games_catalog.RobloxGame(key="other", name="Other", place_id=999,
-                                         universe_id=None, note="", evidence="")
-        with mock.patch.object(games_catalog, "window_state",
-                               return_value={"found": True}), \
-             mock.patch.object(games_catalog, "current_place",
-                               return_value={"found": True, "place_id": 3623096087,
-                                             "game": games_catalog.find("muscle"),
-                                             "log": "x.log", "age_sec": 5}), \
-             mock.patch.object(games_catalog, "_hud_visible",
-                               return_value=(True, "HUD")):
-            result = games_catalog.autostart(preferred=other)
-        self.assertEqual(result["game"].place_id, 3623096087)
+    def test_launch_is_named_as_forbidden(self):
+        text = " ".join(guard_report()).lower()
+        self.assertIn("запускать", text)
 
 
 class TestGeometry(unittest.TestCase):
@@ -282,7 +137,7 @@ class TestGeometry(unittest.TestCase):
                 self.assertLessEqual(ui.width_of(line), width + 4)
 
     def test_home_screen_is_aligned_and_has_the_footer_contract(self):
-        screen = ui.home_screen("1.0.0", "Muscle Legends", 2, 1, 1,
+        screen = ui.home_screen("2.0.0", "—", 2, 1, 1,
                                 [("/help", "справка")])
         for line in screen.split("\n"):
             self.assertLessEqual(ui.width_of(line), ui.term_width() + 4)
@@ -292,7 +147,7 @@ class TestGeometry(unittest.TestCase):
         for cols in (72, 90, 104, 140):
             with mock.patch.object(ui, "term_width",
                                    lambda limit=112, c=cols: max(72, min(limit, c - 2))):
-                screen = ui.home_screen("1.4.0", "Muscle Legends", 0, 0, 0,
+                screen = ui.home_screen("2.0.0", "—", 0, 0, 0,
                                         [("/help", "справка")],
                                         mcp_active=False, pet_status="3D ○ выкл")
                 widths = {ui.width_of(line) for line in screen.split("\n")}
@@ -301,21 +156,21 @@ class TestGeometry(unittest.TestCase):
 
     def test_two_panel_home_has_matching_frames(self):
         with mock.patch.object(ui, "term_width", lambda limit=112: 104):
-            screen = ui.home_screen("1.4.0", "Muscle Legends", 0, 0, 0,
+            screen = ui.home_screen("2.0.0", "—", 0, 0, 0,
                                     [("/help", "справка")])
         self.assertEqual(screen.count("╭"), screen.count("╰"))
         self.assertEqual(screen.count("╭"), 3)      # logo + info + commands
         self.assertEqual(screen.count("╭╌"), 3)
 
     def test_home_screen_uses_no_wide_emoji(self):
-        screen = ui.home_screen("1.4.0", "Muscle Legends", 0, 0, 0,
+        screen = ui.home_screen("2.0.0", "—", 0, 0, 0,
                                 [("/help", "справка")])
         wide = [ch for ch in ui.ANSI_RE.sub("", screen) if ord(ch) > 0x1F000]
         self.assertEqual(wide, [], "emoji break frame geometry")
 
     def test_narrow_screen_stacks_instead_of_overlapping(self):
         with mock.patch.object(ui, "term_width", lambda limit=112: 72):
-            screen = ui.home_screen("1.4.0", "Muscle Legends", 0, 0, 0,
+            screen = ui.home_screen("2.0.0", "—", 0, 0, 0,
                                     [("/help", "справка")])
         for line in screen.split("\n"):
             self.assertLessEqual(ui.width_of(line), 72)
@@ -325,7 +180,7 @@ class TestGeometry(unittest.TestCase):
         # console without VT those bytes would print as junk and break frames.
         with mock.patch.object(ui, "ENABLE_ANSI", False), \
                 mock.patch.object(ui, "term_width", lambda limit=112: 104):
-            screen = ui.home_screen("1.4.0", "Muscle Legends", 0, 0, 0,
+            screen = ui.home_screen("2.0.0", "—", 0, 0, 0,
                                     [("/help", "справка")],
                                     pet_status="\x1b[2m3D ○ выкл\x1b[0m")
         self.assertNotIn("\x1b", screen)
@@ -358,83 +213,6 @@ class TestGeometry(unittest.TestCase):
             fake_stdin.isatty.return_value = False
             self.assertEqual(ui.prompt(), "/help")
         ask.assert_called_once_with()
-
-
-class TestSkillsSafety(unittest.TestCase):
-    def test_train_refuses_without_a_visible_game(self):
-        bot = AlontitoBot()
-        fake = mock.Mock()
-        fake.success = False
-        fake.detail = "окно Roblox не найдено"
-        fake.metrics = {"strength": None, "gems": None}
-        with mock.patch.object(bot, "health", return_value=fake):
-            res = bot.health()
-        self.assertFalse(res.success)
-
-    def test_health_never_invents_numbers(self):
-        bot = AlontitoBot()
-        with mock.patch.object(bot, "build", side_effect=RuntimeError("нет стека")):
-            res = bot.health()
-        self.assertFalse(res.success)
-        self.assertIn("ошибка", res.detail)
-        self.assertNotIn(0, res.metrics.values())
-
-
-class TestObserveHonesty(unittest.TestCase):
-    """«Наблюдать сцену» без игры не отвечает силой 0: ноль - это данные,
-    а их тут нет (E-001). Найдено живой проверкой пульта 26.11."""
-
-    def _bot(self, attached, scene_metrics, modal_open=False, events=()):
-        bot = AlontitoBot()
-        scene = mock.Mock()
-        scene.metrics = scene_metrics
-        scene.modal_open = modal_open
-        scene.events = events
-        adapter = mock.Mock()
-        adapter.observe.return_value = scene
-        with mock.patch.object(bot, "build", return_value=(adapter, None)), \
-             mock.patch.object(bot, "is_attached", return_value=attached):
-            return bot.observe()
-
-    def test_no_window_is_a_refusal_not_zeros(self):
-        res = self._bot(attached=False, scene_metrics={})
-        self.assertFalse(res.success)
-        self.assertIn("не найдено", res.detail)
-        self.assertNotIn("0", res.detail.replace("0,0", ""))
-
-    def test_attached_but_unreadable_frame_is_not_zeros(self):
-        res = self._bot(attached=True, scene_metrics={"strength": None, "gems": None})
-        self.assertTrue(res.success)
-        self.assertIn("HUD", res.detail)
-        self.assertIsNone(res.metrics.get("strength"))
-        self.assertEqual(res.evidence, STATUS_UNCONFIRMED)
-
-    def test_readable_frame_reports_numbers(self):
-        res = self._bot(attached=True, scene_metrics={"strength": 3_110_000,
-                                                      "gems": 16_100_000})
-        self.assertTrue(res.success)
-        self.assertIn("сила", res.detail)
-        self.assertIn("3,110,000", res.detail)
-        self.assertEqual(res.metrics.get("strength"), 3_110_000)
-        self.assertEqual(res.evidence, STATUS_MEASURED)
-
-    def test_adapter_does_not_fabricate_zeros(self):
-        from games.muscle_legends import MuscleLegendsAdapter
-        adapter = object.__new__(MuscleLegendsAdapter)
-        adapter._state_cache = None
-        adapter._state_ts = 0.0
-        adapter.watcher = mock.Mock()
-        adapter.watcher.observe.return_value = {
-            "roblox_found": False, "strength": None, "gems": None,
-            "likely_dead": False, "events": [], "modal_open": False,
-        }
-        adapter.memory = mock.Mock()
-        adapter.memory.get_rebirths_known.return_value = 0
-        state = adapter.observe()
-        self.assertIsNone(state.metrics["strength"])
-        self.assertIsNone(state.metrics["gems"])
-        # и кеш TTL не прячет следующий честный ответ
-        self.assertIs(state, adapter.observe())
 
 
 if __name__ == "__main__":

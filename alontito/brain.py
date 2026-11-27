@@ -1,19 +1,18 @@
-"""The brain of Alontito: decide, measure, reflect.
+"""The brain of Alontito: reflect, remember lessons, route free text.
 
 Three jobs, nothing else:
 
-  plan()      - what is the single next thing to do, and WHY (with evidence)
-  reflect()   - compare a measured run with the baseline before it
-  summary()   - what is known from the recorded runs
+  reflect()          - compare a measured run with the baseline before it
+  summary()          - what is known from the recorded runs
+  interpret()        - route a human sentence to a terminal command
 
-HARD RULE #2 (2026-11-24): Alontito does not play, so plan() never proposes
-an action in the game - only launch (official link), wait, observe, watch or
-ask. The numbers it reflects on come from watching the USER's play (/watch),
-not from its own actions: "не смог измерить ≠ получилось" still applies, and
-a guess never becomes an "improvement" here.
+HARD RULE #2 (2026-11-24) and the 2026-11-27 pivot: Alontito does not play and
+there is no game window to plan about any more, so the old plan() with its
+launch/observe/wait decisions is gone. "не смог измерить ≠ получилось" still
+applies: a guess never becomes an "improvement" here.
 """
 import time
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import Dict, List, Optional
 
 from .memory import (MISSING, STATUS_CONTRADICTION,
@@ -22,22 +21,9 @@ from .selfdev import (add_lesson, note_verdict,
                       status as selfdev_status)
 
 # A run counts as "the same" as the baseline when it stays inside this band.
-# The HUD rounds strength to two significant digits, which is about +-0.4% at
-# 2.7M, and one set varies by 70k-390k depending on weight, so 10% is the
-# smallest band that is not noise.
+# 10% is the smallest band that is not noise for the rates this project
+# measured (a single verified window varies by ~20% between repeats).
 SAME_BAND = 0.10
-
-
-@dataclass
-class Decision:
-    # HARD RULE #2 (2026-11-24): "train" and "close_dialog" are no longer
-    # decisions Alontito can make. It launches the game for the user, watches,
-    # observes, waits or asks.
-    action: str                 # launch | observe | watch | wait | ask
-    reason: str
-    evidence: str = STATUS_UNCONFIRMED
-    parameters: Dict = field(default_factory=dict)
-    question: str = ""
 
 
 @dataclass
@@ -60,61 +46,6 @@ class Brain:
         self.data = memory.data
         self.data.setdefault("baseline", {})
         self.data.setdefault("history", [])
-
-    # ------------------------------------------------------------------
-    # planning
-    # ------------------------------------------------------------------
-
-    def plan(self, health: Optional[dict] = None,
-             attached: bool = False) -> Decision:
-        """Choose ONE action from what is actually known right now.
-
-        health is what the last read returned: {'is_game': bool, 'strength':
-        int|None, 'gems': int|None, 'modal_open': bool, 'events': [...]}.
-        """
-        health = health or {}
-
-        if not attached:
-            return Decision(
-                "launch",
-                "окно Roblox не найдено — без окна играть негде",
-                STATUS_MEASURED,
-                {"hint": "/games затем /play muscle"},
-            )
-
-        if health and not health.get("is_game", True):
-            return Decision(
-                "wait",
-                "окно есть, но HUD игры не виден: загрузка, меню или вкладка "
-                "клиента (после сессии клиент показывает свои страницы)",
-                STATUS_MEASURED,
-                {"hint": "/status через 10-20 секунд"},
-            )
-
-        if health.get("modal_open"):
-            return Decision(
-                "wait",
-                "открыт диалог: закрой его сам — Алонтито не кликает за тебя",
-                STATUS_MEASURED,
-                {"hint": "/status, когда диалог закрыт"},
-            )
-
-        if not health or health.get("strength") is None:
-            return Decision(
-                "observe",
-                "сила не прочитана — сначала нужен читаемый кадр",
-                STATUS_UNCONFIRMED,
-                {"hint": "/status или /attach"},
-            )
-
-        # HARD RULE #2 (2026-11-24): a readable scene means "watch", never
-        # "train" or "close_dialog". Those decisions no longer exist here.
-        return Decision(
-            "watch",
-            "HUD читается — наблюдаю за твоей игрой и ничего не нажимаю",
-            STATUS_MEASURED,
-            {"hint": "/watch 60 — минута наблюдения с замером темпа"},
-        )
 
     # ------------------------------------------------------------------
     # reflection
@@ -192,8 +123,7 @@ class Brain:
     def propose(self) -> Optional[Dict]:
         """The ONE change the measurements support, or None.
 
-        Since 2026-11-24 Alontito does not play, so it has no routine of its
-        own to improve (the old proposals were about its training sets). It
+        Since the pivot Alontito has no routine of its own to improve. It
         always answers None; /learn says so instead of inventing a change.
         """
         return None
@@ -241,16 +171,11 @@ class Brain:
 # ---------------------------------------------------------------------------
 
 _INTENTS = [
-    ("/auto", ("найди игру", "найди роблокс", "автопоиск", "подключись",
-               "найди плейс")),
-    ("/play", ("запусти", "запуск", "открой игру", "играть", "врубай")),
-    ("/watch", ("смотри", "наблюдай", "понаблюдай", "что видишь", "покажи экран")),
-    ("/status", ("статус", "как дела", "проверь", "готов")),
-    ("/learn", ("учись", "развивайся", "что дальше")),
+    ("/watch", ("смотри", "наблюдай", "понаблюдай")),
+    ("/learn", ("учись", "что дальше", "что известно")),
     ("/memory", ("память", "что знаешь", "факты")),
     ("/skills", ("навык", "умения", "навыки")),
     ("/safety", ("безопас", "правил", "запрещ")),
-    ("/games", ("игры", "какие игры", "каталог")),
     ("/mcp", ("мкп", "мсп", "mcp", "мост", "подключи ии")),
     ("/3d", ("3d", "3д", "маскот", "питомец", "компаньон", "персонаж")),
     ("/quit", ("выход", "пока", "закройся", "quit")),
@@ -260,8 +185,9 @@ _INTENTS = [
 def interpret(text: str) -> Optional[str]:
     """Map a human sentence to a command, or None when unsure.
 
-    Returning None is a feature: guessing the wrong destructive-sounding
-    intent is worse than asking the user to type /help.
+    Returning None is a feature: since the pivot free text goes to the agent
+    chat (alontito/agent.py), so a phrase that looks like small talk must not
+    silently become a command. Playing phrases route to nothing at all.
     """
     low = (text or "").strip().lower()
     if not low:

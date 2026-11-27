@@ -1,41 +1,36 @@
-"""Model Context Protocol (MCP) Server for Alontito / Roblox companion.
+"""Model Context Protocol (MCP) Server for Alontito.
 
 Provides a standard JSON-RPC 2.0 interface for AI assistants (Cursor, Claude,
-Antigravity, OpenCode, etc.) to:
-  - inspect what the companion currently sees (HUD, badges, raw frame)
-  - read memory, facts and measured runs
-  - capture a screenshot for visual reasoning
+Antigravity, OpenCode, ZCode, etc.) to:
+  - read the agent status, memory facts and measured runs
+  - search the experience memory
+  - record a learned fact into the agent's memory
 
-HARD RULE #2 (user decision, 2026-11-24): the companion never plays for the
-user. The former execute_safe_action tool is gone: game input is disabled at
-the InputController level (config.GAME_INPUT_ENABLED is False), so no MCP
-client can train, click or steer the game through this server.
+HARD RULE #2 (user decision, 2026-11-24) and the 2026-11-27 pivot: the agent
+never plays for the user and the game layer is gone. The former
+execute_safe_action / vision / screenshot tools died with the Roblox code:
+there is nothing to execute and nothing to look at.
 
-Runs over stdio or local TCP/HTTP without external dependencies.
+Runs over stdio without external dependencies:
+    python -m alontito.mcp_server
 """
-import base64
-import io
 import json
-import os
 import sys
 import threading
-import time
 from typing import Any, Dict, List, Optional
 
-from .memory import Memory
-from .skills import AlontitoBot, guard_report
+from .memory import Memory, STATUS_SECONDARY
 
 # Protocol constants
 MCP_PROTOCOL_VERSION = "2024-11-05"
-SERVER_NAME = "alontito-roblox-mcp"
-SERVER_VERSION = "1.0.0"
+SERVER_NAME = "alontito-mcp"
+SERVER_VERSION = "2.0.0"
 
 
 class AlontitoMCPServer:
     """Zero-dependency Model Context Protocol server."""
 
-    def __init__(self, bot: Optional[AlontitoBot] = None, memory: Optional[Memory] = None):
-        self.bot = bot or AlontitoBot()
+    def __init__(self, memory: Optional[Memory] = None):
         self.memory = memory or Memory()
         self.is_active = False
         self._thread: Optional[threading.Thread] = None
@@ -59,51 +54,59 @@ class AlontitoMCPServer:
     def list_tools(self) -> List[Dict[str, Any]]:
         return [
             {
-                "name": "get_game_vision_state",
+                "name": "get_agent_status",
                 "description": (
-                    "Reads current game vision state: Roblox window presence, "
-                    "strength badge value, gems/candy badge, open modals, "
-                    "readability confidence and scene warnings."
+                    "Reads the agent status: sessions, facts count, open "
+                    "questions, skills with measured rates, learning stats."
+                ),
+                "inputSchema": {"type": "object", "properties": {}},
+            },
+            {
+                "name": "get_agent_memory",
+                "description": (
+                    "Retrieves the agent's learned facts (with evidence "
+                    "statuses), open questions and measured skills."
                 ),
                 "inputSchema": {
                     "type": "object",
                     "properties": {
-                        "force_capture": {
-                            "type": "boolean",
-                            "description": "True to force an immediate new screen grab",
-                            "default": True,
-                        }
+                        "search": {
+                            "type": "string",
+                            "description": "Optional substring to filter facts",
+                        },
                     },
                 },
             },
             {
-                "name": "capture_screenshot_base64",
+                "name": "search_experience",
                 "description": (
-                    "Captures the Roblox window or full desktop and returns "
-                    "a PNG image encoded in base64. Ideal for visual AI reasoning."
+                    "Searches the experience memory (SQLite) for past "
+                    "situations and lessons similar to the query. Returns an "
+                    "empty list when the store does not exist yet."
                 ),
                 "inputSchema": {
                     "type": "object",
                     "properties": {
-                        "max_dimension": {
+                        "query": {
+                            "type": "string",
+                            "description": "What to recall",
+                        },
+                        "limit": {
                             "type": "integer",
-                            "description": "Max width or height to downscale for AI speed (default: 1024)",
-                            "default": 1024,
-                        }
+                            "description": "Max results (default 4)",
+                            "default": 4,
+                        },
                     },
-                },
-            },
-            {
-                "name": "get_bot_memory",
-                "description": "Retrieves the bot's learned facts, open questions and stats.",
-                "inputSchema": {
-                    "type": "object",
-                    "properties": {},
+                    "required": ["query"],
                 },
             },
             {
                 "name": "record_learned_fact",
-                "description": "Records an insight, strategy observation or game fact into Alontito's memory.",
+                "description": (
+                    "Records an insight or fact into Alontito's memory. The "
+                    "fact is stored with status СООБЩАЕТСЯ ВТОРИЧНЫМ: an "
+                    "external AI is a secondary source, not a measurement."
+                ),
                 "inputSchema": {
                     "type": "object",
                     "properties": {
@@ -111,9 +114,9 @@ class AlontitoMCPServer:
                             "type": "string",
                             "description": "Fact or insight text to remember",
                         },
-                        "game": {
+                        "source": {
                             "type": "string",
-                            "description": "Target game name (default: current)",
+                            "description": "Who reports this (default: mcp client name)",
                         },
                     },
                     "required": ["fact"],
@@ -124,86 +127,46 @@ class AlontitoMCPServer:
     def list_resources(self) -> List[Dict[str, Any]]:
         return [
             {
-                "uri": "alontito://vision/current_state",
-                "name": "Current Vision State",
-                "description": "Real-time JSON snapshot of HUD, badges and game window status",
-                "mimeType": "application/json",
-            },
-            {
                 "uri": "alontito://memory/facts",
                 "name": "Learned Facts & Insights",
-                "description": "Persistent memory of what the bot learned about games",
+                "description": "Persistent memory of what the agent learned",
                 "mimeType": "application/json",
             },
         ]
 
+    def _experience_memory(self):
+        """Lazy import: the store may not exist on a fresh machine."""
+        try:
+            from brain.experience_memory import ExperienceMemory
+            return ExperienceMemory()
+        except Exception:
+            return None
+
     def handle_call_tool(self, tool_name: str, arguments: Dict[str, Any]) -> Dict[str, Any]:
         """Dispatches an MCP tool call."""
-        if tool_name == "get_game_vision_state":
-            force = arguments.get("force_capture", True)
-            state = self.bot.inspect(force_fresh=force)
+        if tool_name == "get_agent_status":
+            from .brain import Brain
+            summary = Brain(self.memory).summary()
             return {
                 "content": [
                     {
                         "type": "text",
-                        "text": json.dumps(state, indent=2, ensure_ascii=False, default=str),
+                        "text": json.dumps(summary, indent=2, ensure_ascii=False, default=str),
                     }
                 ]
             }
 
-        elif tool_name == "capture_screenshot_base64":
-            max_dim = int(arguments.get("max_dimension", 1024))
-            img = self.bot.capture_frame()
-            if img is None:
-                return {
-                    "isError": True,
-                    "content": [{"type": "text", "text": "Failed to capture window (Roblox not found or obscured)."}],
-                }
-            # Resize if necessary to save bandwidth
-            w, h = img.size
-            if max(w, h) > max_dim:
-                scale = max_dim / float(max(w, h))
-                img = img.resize((int(w * scale), int(h * scale)))
-
-            buf = io.BytesIO()
-            img.save(buf, format="PNG")
-            b64_str = base64.b64encode(buf.getvalue()).decode("ascii")
-
-            return {
-                "content": [
-                    {
-                        "type": "image",
-                        "data": b64_str,
-                        "mimeType": "image/png",
-                    },
-                    {
-                        "type": "text",
-                        "text": f"Screenshot captured successfully: {img.width}x{img.height} px.",
-                    },
-                ]
-            }
-
-        elif tool_name == "execute_safe_action":
-            # HARD RULE #2 (2026-11-24): no game action can be executed.
-            # The tool is kept in the dispatch only to answer honestly instead
-            # of "Unknown tool".
-            return {
-                "isError": True,
-                "content": [{"type": "text",
-                             "text": "Действия в игре отключены: Алонтито не "
-                                     "играет за пользователя (2026-11-24). "
-                                     "Доступно только наблюдение и память."}],
-            }
-
-        elif tool_name == "get_bot_memory":
-            facts = self.memory.facts()
-            questions = self.memory.open_questions()
-            skills = self.memory.skills()
+        elif tool_name == "get_agent_memory":
+            needle = (arguments.get("search") or "").strip()
+            facts = self.memory.find_facts(needle) if needle else self.memory.facts()
             summary = {
-                "selected_game": self.memory.selected_game(),
                 "facts": facts,
-                "open_questions": questions,
-                "skills": skills,
+                "open_questions": self.memory.open_questions(),
+                "skills": [
+                    {"name": s.name, "attempts": s.attempts,
+                     "successes": s.successes, "per_minute": s.per_minute}
+                    for s in self.memory.skills()
+                ],
             }
             return {
                 "content": [
@@ -214,16 +177,52 @@ class AlontitoMCPServer:
                 ]
             }
 
-        elif tool_name == "record_learned_fact":
-            fact = arguments.get("fact", "").strip()
-            game = arguments.get("game") or (self.memory.selected_game() or {}).get("name", "Unknown")
-            if not fact:
-                return {"isError": True, "content": [{"type": "text", "text": "Empty fact provided."}]}
-            self.memory.add_fact(fact, game=game)
+        elif tool_name == "search_experience":
+            query = (arguments.get("query") or "").strip()
+            if not query:
+                return {"isError": True,
+                        "content": [{"type": "text", "text": "Empty query."}]}
+            store = self._experience_memory()
+            if store is None:
+                return {
+                    "content": [{"type": "text",
+                                 "text": "Опытов пока нет: база ещё не создана."}],
+                }
+            rows = store.recall(query, limit=int(arguments.get("limit", 4) or 4))
             return {
                 "content": [
-                    {"type": "text", "text": f"Fact recorded: '{fact}' for game '{game}'."}
+                    {
+                        "type": "text",
+                        "text": json.dumps(rows, indent=2, ensure_ascii=False, default=str),
+                    }
                 ]
+            }
+
+        elif tool_name == "record_learned_fact":
+            fact = (arguments.get("fact") or "").strip()
+            if not fact:
+                return {"isError": True,
+                        "content": [{"type": "text", "text": "Empty fact provided."}]}
+            source = (arguments.get("source") or "mcp client").strip()[:100]
+            stored = self.memory.add_fact(fact, STATUS_SECONDARY, source)
+            return {
+                "content": [
+                    {"type": "text",
+                     "text": f"Fact recorded (status: {stored['status']}, "
+                             f"source: {source})."}
+                ]
+            }
+
+        elif tool_name == "execute_safe_action":
+            # HARD RULE #2 + pivot: no game action exists any more. The name
+            # is kept in the dispatch only to answer honestly instead of
+            # "Unknown tool".
+            return {
+                "isError": True,
+                "content": [{"type": "text",
+                             "text": "Действий в играх больше нет: игровой "
+                                     "слой удалён из проекта (2026-11-27). "
+                                     "Доступны память и опыт агента."}],
             }
 
         return {
@@ -287,22 +286,7 @@ class AlontitoMCPServer:
 
         elif method == "resources/read":
             uri = params.get("uri")
-            if uri == "alontito://vision/current_state":
-                state = self.bot.inspect(force_fresh=False)
-                return {
-                    "jsonrpc": "2.0",
-                    "id": msg_id,
-                    "result": {
-                        "contents": [
-                            {
-                                "uri": uri,
-                                "mimeType": "application/json",
-                                "text": json.dumps(state, indent=2, ensure_ascii=False, default=str),
-                            }
-                        ]
-                    },
-                }
-            elif uri == "alontito://memory/facts":
+            if uri == "alontito://memory/facts":
                 facts = self.memory.facts()
                 return {
                     "jsonrpc": "2.0",
@@ -357,3 +341,11 @@ class AlontitoMCPServer:
                     sys.stdout.flush()
         finally:
             self.is_active = False
+
+
+def main():
+    AlontitoMCPServer().run_stdio_loop()
+
+
+if __name__ == "__main__":
+    main()

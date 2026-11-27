@@ -3,7 +3,6 @@ import unittest
 import tempfile
 from pathlib import Path
 from brain.opus_local_core import SafeToolValidator, ToolSecurityViolation, OpusLocalCore, OpusConfig
-from vision.omni_eye import parse_hud_number, OmniEye, ScreenElement
 
 
 class TestOmniOpus5(unittest.TestCase):
@@ -23,12 +22,6 @@ class TestOmniOpus5(unittest.TestCase):
         th, ans = OpusLocalCore.split_thinking(raw)
         self.assertEqual(th, "Проверяю метрики")
         self.assertEqual(ans, "Готово!")
-
-    def test_parse_hud_number_suffixes(self):
-        self.assertAlmostEqual(parse_hud_number("142.5K"), 142500.0)
-        self.assertAlmostEqual(parse_hud_number("3.5B"), 3.5e9)
-        self.assertAlmostEqual(parse_hud_number("12Qa"), 1.2e16)
-
 
     def test_high_effort_runs_review_and_revision_loop(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -50,17 +43,6 @@ class TestOmniOpus5(unittest.TestCase):
             self.assertEqual(result["answer"], "Исправленный ответ")
             self.assertTrue(result["verified"])
             self.assertEqual([x["status"] for x in result["reviews"]], ["fixed", "passed"])
-
-    def test_trade_reflex_auto_decline(self):
-        eye = OmniEye()
-        elements = [
-            ScreenElement(1, "Incoming Trade Request", (100, 100, 300, 140), (200, 120), 0.95, "ocr"),
-            ScreenElement(2, "Decline", (220, 200, 290, 230), (255, 215), 0.98, "ocr"),
-        ]
-        reflex = eye.check_safety_reflexes(elements)
-        self.assertIsNotNone(reflex)
-        self.assertEqual(reflex["reflex"], "DECLINE_TRADE")
-        self.assertEqual(reflex["click_xy"], (255, 215))
 
 
 if __name__ == "__main__":

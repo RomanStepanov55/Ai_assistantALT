@@ -1,50 +1,43 @@
-"""Alontito - a terminal brain for the Roblox companion.
+"""Alontito - a terminal companion.
 
-One application, one prompt: pick a game, launch it (official link), watch the
-USER's play, and read what was measured. Alontito does not play for the user
-(HARD RULE #2, 2026-11-24): input to the game is disabled at the
-InputController level. Every number shown here comes from a read or a
-measurement; when there is no number, the app says so instead of printing 0.
+One application, one prompt: talk to the agent, remember facts, set
+reminders, and read what was measured. Alontito does not play for the user
+(HARD RULE #2, 2026-11-24) and since the 2026-11-27 pivot it has no game
+layer at all: no Roblox launch, no HUD reader, no input code. Every number
+shown here comes from a record or a measurement; when there is no number,
+the app says so instead of printing 0.
 
-Commands are listed in /help. Free text is routed by brain.interpret() when it
-is obvious ("запусти игру", "что видишь"), and refused when it is not.
+Commands are listed in /help. Free text is routed by brain.interpret() when
+it is obvious («память», «навыки»), and refused when it is not.
 """
 import json
 import os
 import sys
-import time
 from pathlib import Path
 
-from . import games_catalog
 from . import omni_link
 from .brain import Brain, interpret
 from .memory import JOURNAL_FILE, STATUSES, Memory
-from .skills import ALLOWED_ACTIONS, AlontitoBot, guard_report
+from .skills import guard_report
 from .mcp_server import AlontitoMCPServer
 from .pet_terminal import pet3d
-from .ui import (Timer, box, clear_screen, clip, err, home_screen, info, ok,
+from .ui import (box, clear_screen, clip, err, home_screen, info, ok,
                  paint, prompt, ready, say, set_background, step, table,
                  term_width, two_columns, warn, blank)
 
-VERSION = "1.6.0"
+VERSION = "2.0.0"
 
 HOME_COMMANDS = [
     ("/help", "справка"),
-    ("/games", "каталог игр"),
-    ("/play", "запустить игру"),
-    ("/auto", "автопоиск игры"),
-    ("/attach", "проверить HUD"),
-    ("/status", "замер сейчас"),
-    ("/watch", "наблюдение"),
-    ("/learn", "улучшение"),
     ("/memory", "факты"),
     ("/skills", "навыки"),
     ("/journal", "журнал"),
+    ("/learn", "что известно"),
     ("/safety", "запреты"),
     ("/mcp", "MCP-мост для ИИ"),
     ("/3d", "3D-ассистент"),
     ("/omni", "обучение Omni"),
-    ("/info", "о боте"),
+    ("/info", "об агенте"),
     ("/about", "о проекте"),
     ("/github", "репозиторий"),
     ("/support", "связь"),
@@ -56,13 +49,8 @@ class App:
     def __init__(self):
         self.memory = Memory()
         self.brain = Brain(self.memory)
-        self.bot = AlontitoBot()
-        self.mcp = AlontitoMCPServer(self.bot, self.memory)
+        self.mcp = AlontitoMCPServer(memory=self.memory)
         self.running = True
-        self.health = {}
-        self._selected = self.memory.selected_game()
-        self._background = True
-        self._autostart = bool(self.memory.data.get("autostart", True))
         self._mcp_enabled = bool(self.memory.data.get("mcp_enabled", False))
 
     # ------------------------------------------------------------------
@@ -75,8 +63,6 @@ class App:
             self.refresh_home()
         else:
             pet3d.autostart()
-        if self._autostart:
-            self.auto_attach()
         while self.running:
             print(ready())
             raw = prompt("  › ")
@@ -88,8 +74,7 @@ class App:
             command = interpret(line)
             if command is None:
                 warn("не понял формулировку — /help. Свободный текст понимаю "
-                     "так: «запусти игру», «тренируйся», «что видишь», "
-                     "«как дела», «учись».")
+                     "так: «память», «навыки», «что известно», «как дела».")
                 continue
             self.dispatch(command, line)
 
@@ -98,10 +83,9 @@ class App:
         facts = len(self.memory.facts())
         questions = len(self.memory.open_questions())
         skills = len(self.memory.skills())
-        game = (self._selected or {}).get("name") or "не выбрана"
         pet_badge = pet3d.badge("ansi")
         pet_on = pet3d.ctl.status == "on"
-        print(home_screen(VERSION, game, facts, questions, skills,
+        print(home_screen(VERSION, "—", facts, questions, skills,
                           HOME_COMMANDS, mcp_active=self._mcp_enabled,
                           pet_status=pet_badge, pet_on=pet_on))
         print()
@@ -111,12 +95,6 @@ class App:
         args = rest.split() if rest.strip() else []
         handler = {
             "/help": self.cmd_help,
-            "/games": self.cmd_games,
-            "/play": self.cmd_play,
-            "/auto": self.cmd_auto,
-            "/attach": self.cmd_attach,
-            "/status": self.cmd_status,
-            "/watch": self.cmd_watch,
             "/learn": self.cmd_learn,
             "/memory": self.cmd_memory,
             "/skills": self.cmd_skills,
@@ -150,108 +128,20 @@ class App:
     # commands
     # ------------------------------------------------------------------
 
-    # ------------------------------------------------------------------
-    # autostart: find Roblox, identify the place, open what is needed
-    # ------------------------------------------------------------------
-
-    def auto_attach(self):
-        blank()
-        info("автопоиск: Roblox → плейс → игра")
-        preferred = None
-        sel = self._selected or {}
-        if sel.get("place_id"):
-            preferred = games_catalog.find(str(sel["place_id"]))
-
-        result = games_catalog.autostart(preferred=preferred, on_step=step)
-        blank()
-        game = result.get("game")
-        place = result.get("place") or {}
-
-        if not result.get("attached"):
-            warn(f"не подключился: {result.get('detail')}")
-            if not result.get("launched"):
-                step("Roblox может быть не установлен: проверь клиент и вход в аккаунт")
-            step("когда игра откроется — /attach, или вручную /play muscle")
-            blank()
-            return
-
-        if game:
-            if result.get("launched"):
-                ok(f"открыл и подтвердил: {game.name}")
-            else:
-                ok(f"игра уже на экране: {game.name}")
-        elif place.get("found"):
-            warn(f"на экране place {place['place_id']} — в каталоге его нет")
-            step("имя окна не считается доказательством, поэтому игру не называю")
-        elif result.get("launched"):
-            ok("клиент открыт, HUD игры подтверждён")
-        else:
-            ok("игра уже на экране")
-
-        identity = result.get("identity") or ""
-        if place.get("found") and "другой place" not in identity:
-            ok(f"place {place['place_id']} · {identity}")
-            step(f"лог: {place.get('log')} · возраст {place.get('age_sec')}с")
-        elif "другой place" in identity:
-            err(f"идентичность не совпала: {identity}")
-            step("это ровно тот случай, из-за которого имя игры не считается доказательством")
-        else:
-            warn("place id логом не подтверждён: HUD виден, но какой именно плейс — "
-                 "не доказано")
-
-        if game and (not sel or sel.get("place_id") != game.place_id):
-            self.memory.select_game(game.name, game.place_id)
-            self._selected = self.memory.selected_game()
-            step(f"выбранная игра обновлена: {game.name}")
-
-        self.health = {"is_game": True}
-        info("дальше: /status — числа, /watch — наблюдение за твоей игрой")
-        blank()
-
-    def cmd_auto(self, args):
-        what = (args[0].lower() if args else "")
-        if what in ("on", "вкл", "да"):
-            self._autostart = True
-            self.memory.data["autostart"] = True
-            self.memory.save()
-            ok("автопоиск включён: при следующем запуске найду Roblox и открою игру")
-            blank()
-            return
-        if what in ("off", "выкл", "нет"):
-            self._autostart = False
-            self.memory.data["autostart"] = False
-            self.memory.save()
-            ok("автопоиск выключен: запускаю игру только по /play")
-            blank()
-            return
-        if what in ("now", "сейчас"):
-            self.auto_attach()
-            return
-        blank()
-        info(f"автопоиск: {'включён' if self._autostart else 'выключен'}")
-        step("/auto on — включить, /auto off — выключить, /auto now — найти сейчас")
-        blank()
-
     def cmd_help(self, args):
         blank()
         width = term_width()
         say(box("КОМАНДЫ", [
             two_columns([
-                ("/games", "каталог по Place ID"),
-                ("/play <ключ|id>", "официальная ссылка"),
-                ("/auto", "автопоиск: Roblox и плейс"),
-                ("/attach", "доказать HUD в кадре"),
-    ("/status", "замер: сила, гемы"),
-    ("/watch [секунды]", "наблюдение без действий"),
-    ("/learn", "одно улучшение"),
                 ("/memory [слово]", "факты и статусы"),
                 ("/skills", "успех и прирост/мин"),
                 ("/journal [n]", "события журнала"),
+                ("/learn", "что известно из замеров"),
                 ("/safety", "границы действий"),
                 ("/mcp", "MCP-мост для ИИ"),
                 ("/3d", "3D-ассистент"),
                 ("/omni", "обучение Omni"),
-                ("/info", "о боте"),
+                ("/info", "об агенте"),
                 ("/about", "о проекте"),
                 ("/github", "репозиторий"),
                 ("/support", "связь"),
@@ -260,185 +150,10 @@ class App:
                 ("/quit", "выход"),
             ], width - 6),
             "",
-            paint("Почему не «просто нажми кнопку»: Алонтито не играет за тебя "
-                  "(2026-11-24) — он смотрит на твою игру и подсказывает.",
+            paint("Алонтито не играет за тебя (2026-11-24) и игры в нём больше "
+                  "нет (2026-11-27): он помнит, подсказывает и напоминает.",
                   "muted", dim=True),
         ], width=width))
-        blank()
-
-    # ------------------------------------------------------------------ games
-
-    def cmd_games(self, args):
-        blank()
-        rows = []
-        selected = (self._selected or {}).get("place_id")
-        for game in games_catalog.list_games():
-            mark = "→" if game.place_id == selected else " "
-            rows.append([mark, game.key, game.name, str(game.place_id),
-                         game.note])
-        say(box("ИГРЫ", [
-            table(["", "ключ", "название", "place id", "заметка"], rows,
-                  width=term_width() - 8),
-            "",
-            "Игра определяется по Place ID. Одинаковые названия у разных мест — "
-            "обычная история; по названию эксперимент уедет в другую игру.",
-        ], width=term_width()))
-        blank()
-        info("запуск: /play muscle    либо: /play <place id>")
-        blank()
-
-    def cmd_play(self, args):
-        if not args:
-            err("укажи игру: /play muscle  (см. /games)")
-            return
-        key = args[0]
-        game = games_catalog.find(key)
-        if game is None and key.isdigit():
-            game = games_catalog.add_custom(f"Place {key}", int(key))
-        if game is None:
-            err(f"игра «{key}» не найдена. /games покажет ключи, либо передай "
-                f"Place ID числом")
-            return
-
-        blank()
-        info(f"запуск: {game.name} · place {game.place_id}")
-        launched, detail = games_catalog.launch(game)
-        if not launched:
-            err(f"не удалось открыть ссылку: {detail}")
-            return
-        ok(f"ссылка отправлена: {paint(detail, 'muted')}")
-        self.memory.select_game(game.name, game.place_id)
-        self._selected = self.memory.selected_game()
-
-        info("жду HUD игры в текущем кадре (не «окно открылось», а бейджи видны)")
-        with Timer() as t:
-            confirmed, why = games_catalog.wait_for_game(timeout=150, poll=4)
-        if confirmed:
-            ok(f"HUD подтверждён за {t.seconds:.0f}s")
-        else:
-            warn(f"за {t.seconds:.0f}s HUD не подтверждён: {why}")
-            step("окно Roblox может быть на экране загрузки или в меню — это "
-                 "не доказательство игры")
-            step("проверь вручную и повтори /attach")
-        blank()
-
-    # ----------------------------------------------------------------- attach
-
-    def cmd_attach(self, args):
-        blank()
-        state = games_catalog.window_state()
-        if not state.get("found"):
-            err(state.get("detail", "окно не найдено"))
-            step("сначала /play <игра>, либо открой игру сам")
-            blank()
-            return
-        ok(f"окно найдено, клиентская область {state['client']}")
-        try:
-            from core.window import WindowManager
-            from vision.eye import Eye
-            eye = Eye(WindowManager())
-            with Timer() as t:
-                frame = eye.capture()
-                is_game = bool(frame is not None and eye.frame_is_game(frame))
-            if is_game:
-                ok(f"HUD игры виден в текущем кадре ({t.seconds:.1f}s)")
-                self.health["is_game"] = True
-            else:
-                warn(f"HUD не подтверждён ({t.seconds:.1f}s): это кадр не игры — "
-                     f"загрузка, меню Roblox или вкладка клиента")
-                self.health["is_game"] = False
-        except Exception as e:
-            err(f"проверка кадра не удалась: {e}")
-        blank()
-
-    # ----------------------------------------------------------------- status
-
-    def _probe(self):
-        """Read the current state without printing a panel. Returns (result, seconds)."""
-        with Timer() as t:
-            res = self.bot.health()
-        self.health = {"is_game": res.success,
-                       "strength": res.metrics.get("strength"),
-                       "gems": res.metrics.get("gems")}
-        return res, t.seconds
-
-    def cmd_status(self, args):
-        blank()
-        res, secs = self._probe()
-        s, g = res.metrics.get("strength"), res.metrics.get("gems")
-        lines = [
-            res.detail,
-            "",
-            (paint(f"сила  {s:,}", "lilac", bold=True) if s is not None
-             else paint("сила  не прочитана — это не ноль, это отсутствие "
-                        "данных", "muted")),
-            (paint(f"гемы  {g:,}", "lilac", bold=True) if g is not None
-             else paint("гемы  не прочитаны — два кадра не совпали", "muted")),
-            paint(f"время {secs:.1f}s · статус: {res.evidence}", "muted"),
-        ]
-        say(box("СОСТОЯНИЕ", lines, width=term_width(),
-                color="green" if res.success else "yellow"))
-
-        decision = self.brain.plan(self.health, attached=self.bot.is_attached())
-        blank()
-        info(f"мозг предлагает: {paint(decision.action, 'violet', bold=True)} — "
-             f"{decision.reason}")
-        if decision.parameters.get("hint"):
-            step(f"подсказка: {decision.parameters['hint']}")
-        blank()
-
-    # ------------------------------------------------------------------ watch
-
-    def cmd_watch(self, args):
-        seconds = 30
-        if args:
-            try:
-                seconds = max(5, min(600, int(args[0])))
-            except ValueError:
-                err("секунды должны быть числом")
-                return
-        blank()
-        info(f"наблюдение {seconds}s без действий. Остановить: Ctrl+C")
-        blank()
-        readings = []
-        t0 = time.time()
-        try:
-            while time.time() - t0 < seconds:
-                with Timer() as t:
-                    res = self.bot.observe()
-                s = res.metrics.get("strength")
-                g = res.metrics.get("gems")
-                modal = res.metrics.get("modal_open")
-                stamp = time.strftime("%H:%M:%S")
-                num = f"{s:,}" if s is not None else "не прочитана"
-                gems = f"{g:,}" if g is not None else "—"
-                line = (f"{stamp}   сила {num:>13}   гемы {gems:>12}   "
-                        f"диалог {'да' if modal else 'нет':>3}   {t.seconds:.1f}s")
-                sys.stdout.write("  " + paint(line, "muted") + "\n")
-                sys.stdout.flush()
-                readings.append({"t": time.time() - t0, "strength": s,
-                                 "gems": g, "modal": bool(modal)})
-                time.sleep(max(0.0, 4.0 - t.seconds))
-        except KeyboardInterrupt:
-            blank()
-            warn("наблюдение остановлено")
-        blank()
-
-        known = [r for r in readings if r["strength"] is not None]
-        if len(known) >= 2:
-            delta = known[-1]["strength"] - known[0]["strength"]
-            span = max(0.1, known[-1]["t"] - known[0]["t"])
-            ok(f"{len(known)}/{len(readings)} кадров с числом; сила "
-               f"{known[0]['strength']:,} → {known[-1]['strength']:,} "
-               f"({delta:+,} за {span:.0f}s)")
-            if delta > 0:
-                rate = delta / span * 60
-                self.memory.record_run(delta, span, note="watch")
-                info(f"темп наблюдения: {rate:,.0f}/мин")
-        elif readings:
-            warn(f"чисел нет: {len(readings)} кадров, сила не прочитана. Это не "
-                 f"ноль и не «всё сломалось» — это отсутствие данных.")
-        self.memory.journal("watch", frames=len(readings), known=len(known))
         blank()
 
     # ------------------------------------------------------------------ learn
@@ -461,7 +176,7 @@ class App:
             "",
             table(["время", "прирост", "в мин", "сек", "заметка"], rows,
                   width=term_width() - 8)
-            if rows else "прогонов пока нет — сначала /watch 60",
+            if rows else "прогонов пока нет — замеры появятся из наблюдений",
         ], width=term_width()))
         blank()
 
@@ -585,11 +300,12 @@ class App:
                 color="yellow"))
         blank()
         say(box("КАК ЭТО ДЕРЖИТСЯ", [
-            f"1. Недоступные действия не вызываются: ALLOWED_ACTIONS = "
-            f"{sorted(ALLOWED_ACTIONS)}",
-            "2. Клики только в белый список областей; ESC и TAB не нажимаются",
-            "3. Перед любым действием кадр проверяется: HUD игры должен быть "
-            "виден в текущем кадре, иначе действие отклоняется",
+            "1. Игрового слоя не существует: код ввода, зрение HUD и каталог "
+            "игр удалены из проекта (2026-11-27), а не выключены флагом",
+            "2. Запускать Roblox некому и нечем: ни одного вызова запуска "
+            "в коде не осталось",
+            "3. Действия на ПК требуют явного подтверждения с устройства и "
+            "выключены по умолчанию",
             "4. Трейды и покупки не реализованы вовсе — не «выключены флагом»",
         ], width=term_width(), color="green"))
         blank()
@@ -717,15 +433,14 @@ class App:
             paint("последний опыт", "lilac", bold=True),
         ] + lessons + [
             "",
-            paint("Режим: только чтение. Терминал не запускает Omni, не открывает "
-                  "дашборд и не эмулирует ввод.", "muted"),
-            paint("Исследователь UCB1 по умолчанию работает вхолостую: исполнитель "
-                  "ввода не подключён, клики по координатам не отправляются.", "muted"),
+            paint("Режим: только чтение. Терминал ничего не запускает.",
+                  "muted"),
+            paint("Исследователь UCB1 удалён вместе с игровым слоем: ранжировать "
+                  "пока нечего. Библиотеки ждут потребителя в приложении.", "muted"),
             "",
-            paint("Запуск отдельно:", "lilac", bold=True),
-            "  Alontito_Omni.bat   — ядро + дашборд http://127.0.0.1:8080",
-            paint("  нужны Ollama и модели из config_omni.json; шаги — "
-                  "INTEGRATION_GUIDE.md", "muted"),
+            paint("Подключение:", "lilac", bold=True),
+            paint("  ядро (opus_local_core) подключается к приложению как "
+                  "провайдер «own»; конфиг — config/alontito_brain.json", "muted"),
             "",
             paint("не хватает: ", "muted") + pkg_line,
         ], width=width, color="purple"))
@@ -733,10 +448,11 @@ class App:
 
     def cmd_info(self, args):
         blank()
-        say(box("О БОТЕ", [
+        say(box("ОБ АГЕНТЕ", [
             f"Алонтито v{VERSION} · open-source · MIT",
-            "Терминальный агент для Roblox: запуск игры по Place ID, чтение HUD, "
-            "тренировка с подтверждённым приростом, память с источниками.",
+            "Личный ИИ-компаньон: память с источниками, консультации и "
+            "напоминания. Приложение открывается на любом устройстве в "
+            "домашней сети; мозг — свой, локальный.",
             "",
             paint("Он не угадывает: нет числа — пишет «не подтверждено». Одно "
                   "улучшение за итерацию, замер до и после, откат если хуже.",
@@ -754,9 +470,8 @@ class App:
              paint("git не инициализирован — удалённого репозитория нет. "
                    "Ссылку не выдумываю: её нужно создать и указать.", "muted")),
             "",
-            paint("пока репозитория нет, откат делается вручную: копии "
-                  "data/memory.json, data/capabilities.json, "
-                  "data/glyph_templates.npz", "muted"),
+            paint("история прежнего игрового кода остаётся в git — рабочее "
+                  "дерево чистое", "muted"),
         ], width=term_width()))
         blank()
 

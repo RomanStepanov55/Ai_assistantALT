@@ -38,20 +38,13 @@
     "eclipse.exe",
     "kate.exe",
     "gvim.exe",
-    "nvim-qt.exe",
-    "robloxstudiobeta.exe"
+    "nvim-qt.exe"
   ],
   "ide_title_hints": [
     "visual studio code",
     "pycharm",
     "intellij idea",
     "sublime text",
-    "cursor",
-    "roblox studio"
-  ],
-  "roblox_exes": [
-    "robloxplayerbeta.exe",
-    "robloxplayer.exe",
-    "windows10universal.exe"
+    "cursor"
   ]
 }

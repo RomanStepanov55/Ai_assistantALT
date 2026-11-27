@@ -563,19 +563,19 @@ def info_body(version: str, game: str, facts: int, questions: int,
         gradient("АЛОНТИТО", "violet", "lilac") +
         paint(f"   v{version}", "purple", bold=True),
         "",
-        paint("Опенсорс бот твоей компании", "text") + "   " +
+        paint("Опенсорс агент твоей компании", "text") + "   " +
         paint("✦", "lilac"),
         "  " + rule,
         "Алонтито — это больше, чем бот.",
-        paint("Терминальный агент для Roblox: сам находит игру, читает HUD",
+        paint("Личный ИИ-компаньон: помнит факты и решения, подсказывает",
               "muted"),
-        paint("и подтверждает каждый подход числом.", "muted"),
+        paint("и напоминает о прошлых ситуациях. Игра за тебя — никогда.", "muted"),
         "",
         chips,
         "",
         "  " + status,
         "",
-        paint("игра    ", "muted") + paint(game, "lilac"),
+        paint("агент   ", "muted") + paint(game, "lilac"),
         paint("память  ", "muted") +
         paint(f"{facts} факт · {questions} вопрос · {skills} навык", "lilac"),
     ]

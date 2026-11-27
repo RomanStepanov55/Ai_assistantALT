@@ -1,13 +1,13 @@
 """Read-only link between the Alontito terminal and the Omni learning layer.
 
-The Omni subsystem (``brain/opus_local_core.py``, ``games/universal_explorer.py``,
-``dashboard/app.py``) talks to a local Ollama server and optionally uses heavy
-packages. This module deliberately imports none of them: it reads the config,
-counts rows in the SQLite stores and probes Ollama over plain ``urllib`` with a
+The Omni subsystem (``brain/opus_local_core.py``, experience memory, learning
+engine) talks to a local model server and optionally uses heavy packages. This
+module deliberately imports none of them: it reads the config, counts rows in
+the SQLite stores and probes the model server over plain ``urllib`` with a
 short timeout. That keeps ``/omni`` instant and honest on a machine where the
 subsystem is installed but not running.
 
-Nothing here starts a process, sends input to a game, or writes to the Omni
+Nothing here starts a process, sends input anywhere, or writes to the Omni
 databases. The terminal only reports what exists.
 """
 from __future__ import annotations
@@ -26,26 +26,21 @@ CONFIG_PATH = ROOT / "config_omni.json"
 MEMORY_DB = ROOT / "data" / "alontito_memory.sqlite3"
 LEARNING_DB = ROOT / "data" / "alontito_learning.sqlite3"
 CURATED_PATH = ROOT / "data" / "curated_training.jsonl"
-LAUNCHER = ROOT / "alontito_omni_launcher.py"
-BATCH = ROOT / "Alontito_Omni.bat"
 
 CORE_FILES = (
     "brain/opus_local_core.py",
     "brain/experience_memory.py",
     "brain/learning_engine.py",
-    "vision/omni_eye.py",
-    "games/universal_explorer.py",
-    "dashboard/app.py",
-    "alontito_omni_launcher.py",
+    "brain/task_planner.py",
+    "brain/neuro_lab.py",
+    "brain/resource_governor.py",
+    "brain/voice_chat.py",
     "config_omni.json",
 )
 
 OPTIONAL = (
-    ("mss", "снимок экрана"),
-    ("rapidocr_onnxruntime", "OCR интерфейса"),
-    ("pywinauto", "дерево окон (UIA)"),
-    ("aiogram", "Telegram-мост"),
-    ("faster_whisper", "распознавание речи"),
+    ("vosk", "распознавание речи (офлайн)"),
+    ("sounddevice", "микрофон для голоса"),
     ("torch", "обучение LoRA (опционально)"),
     ("transformers", "обучение LoRA (опционально)"),
     ("peft", "обучение LoRA (опционально)"),
@@ -179,6 +174,4 @@ def status(root: Optional[Path] = None) -> Dict[str, Any]:
         "curated": curated_count(base / "data" / "curated_training.jsonl"),
         "lessons": recent_lessons(3, base / "data" / "alontito_memory.sqlite3"),
         "missing_packages": missing_packages(),
-        "launcher_exists": (base / "alontito_omni_launcher.py").exists(),
-        "batch_exists": (base / "Alontito_Omni.bat").exists(),
     }

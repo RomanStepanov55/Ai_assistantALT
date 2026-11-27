@@ -5,10 +5,8 @@
   "facts": [],
   "questions": [],
   "runs": [],
-  "selected_game": null,
-  "autostart": true,
   "total_strength_gain": 0,
-  "sessions": 7,
+  "sessions": 8,
   "baseline": {},
   "history": []
 }

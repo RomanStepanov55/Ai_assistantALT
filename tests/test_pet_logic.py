@@ -29,16 +29,18 @@ class TestClassify(unittest.TestCase):
     cfg = dp.DEFAULT_CONFIG
 
     def test_ide(self):
-        for exe in ("Code.exe", "pycharm64.exe", "devenv.exe", "Cursor.exe", "RobloxStudioBeta.exe"):
+        for exe in ("Code.exe", "pycharm64.exe", "devenv.exe", "Cursor.exe"):
             self.assertEqual(dp.classify(exe, "x", self.cfg), "coding", exe)
 
-    def test_roblox(self):
-        self.assertEqual(dp.classify("RobloxPlayerBeta.exe", "Roblox", self.cfg), "roblox")
-        self.assertEqual(dp.classify("Windows10Universal.exe", "Roblox", self.cfg), "roblox")
+    def test_unknown_game_is_not_a_state(self):
+        # Игровой слой удалён (2026-11-27): у питомца нет состояния для игр,
+        # и никакой exe не превращается в «roblox».
+        self.assertEqual(dp.classify("RobloxPlayerBeta.exe", "Roblox", self.cfg), "other")
+        self.assertEqual(dp.classify("Windows10Universal.exe", "Roblox", self.cfg), "other")
 
-    def test_browser_tab_is_not_game(self):
-        self.assertEqual(dp.classify("chrome.exe", "Roblox - Google Chrome", self.cfg), "other")
-        self.assertEqual(dp.classify("chrome.exe", "Roblox", self.cfg), "other")
+    def test_browser_tab_is_not_coding(self):
+        self.assertEqual(dp.classify("chrome.exe", "some game - Google Chrome", self.cfg), "other")
+        self.assertEqual(dp.classify("chrome.exe", "visual studio code", self.cfg), "other")
 
     def test_ide_title_hint_but_not_browser(self):
         self.assertEqual(dp.classify("electron-app.exe", "main.py - Visual Studio Code", self.cfg), "coding")
@@ -94,26 +96,21 @@ class TestBrain(unittest.TestCase):
         self.assertEqual(self.b.state, "coding")
         self.assertNotIn("walk_to", types_of(out))
 
-    def test_roblox_turns_back_and_uses_portal(self):
+    def test_portal_from_idle_still_works(self):
+        # Портал раньше завязывался на состояние «смотрит игру»; после удаления
+        # игрового слоя он вызывается из обычных состояний (dblclick / idle-цикл).
         self.boot()
-        self.ctx.update(activity="roblox", x=1400)
-        self.b.tick(2.0, self.ctx)
-        out = self.b.tick(5.0, self.ctx)
-        self.assertEqual(self.b.state, "roblox")
-        self.assertIn("roblox_watch_back", plays(out))
-        self.assertIn(180, [c["deg"] for c in out if c["type"] == "face"])         # спиной к пользователю
-        portal_cmds = []
-        t = 5.0
-        while t < 60 and not portal_cmds:                                          # первый заход ≤ 30 c
-            t += 1.0
-            portal_cmds = [c for c in self.b.tick(t, self.ctx) if c["type"] == "portal"]
-        self.assertTrue(portal_cmds, "портал не запустился за 55 c")
+        out = self.b.portal_now(2.0)
         self.assertEqual(self.b.state, "portal")
-        self.assertEqual(portal_cmds[0]["action"], "run")
-        out = self.b.on_event({"ev": "portal_done", "ok": True}, t + 8)
-        self.assertEqual(self.b.state, "roblox")                                   # вернулся смотреть игру
-        self.assertIn("roblox_watch_back", plays(out))
-        self.assertIn(180, [c["deg"] for c in out if c["type"] == "face"])
+        self.assertEqual([c for c in out if c["type"] == "portal"][0]["action"], "run")
+        out = self.b.on_event({"ev": "portal_done", "ok": True}, 10.0)
+        self.assertIn(self.b.state, dp.STATE_VIEW)                                 # вернулся в обычное состояние
+        self.assertNotIn("roblox_watch_back", plays(out))
+
+    def test_no_game_clip_exists(self):
+        self.assertNotIn("roblox_watch_back", dp.ALL_CLIPS)
+        anims = json.loads((dp.WEB_DIR / "animations.json").read_text(encoding="utf-8"))
+        self.assertNotIn("roblox_watch_back", anims.get("clips", {}))
 
     def test_drag_fall_land_cycle_and_portal_cancel(self):
         self.boot()
@@ -188,10 +185,10 @@ class TestBrain(unittest.TestCase):
 
     def test_mode_switch_leaves_activity_state(self):
         self.boot()
-        self.ctx.update(activity="roblox", x=1400)
+        self.ctx.update(activity="coding", x=1400)
         self.b.tick(2.0, self.ctx)
         self.b.tick(5.0, self.ctx)
-        self.assertEqual(self.b.state, "roblox")
+        self.assertEqual(self.b.state, "coding")
         self.b.set_mode("free", 6.0)
         self.assertEqual(self.b.state, "idle")
 

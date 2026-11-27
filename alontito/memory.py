@@ -89,8 +89,6 @@ class Memory:
             "facts": [],
             "questions": [],
             "runs": [],
-            "selected_game": None,
-            "autostart": True,
             "total_strength_gain": 0,
             "sessions": 0,
         }

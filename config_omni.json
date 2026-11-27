@@ -9,7 +9,6 @@
   "safety": {
     "allow_trades": false,
     "allow_memory_injection": false,
-    "auto_reconnect_roblox": true,
     "ucb_noise_band": 0.1
   },
   "memory_db_path": "data/alontito_memory.sqlite3",

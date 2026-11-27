@@ -31,6 +31,26 @@
       return orig.apply(console, arguments);
     };
   })(console.log);
+  /* Честный отказ: если сцена умерла (нет WebGL, упал импорт three, кость не
+     найдена) — сказать словами, а не молчаливой тёмной пустотой. */
+  function paintFail(text) {
+    if (document.body.dataset.petFail) return;
+    document.body.dataset.petFail = '1';
+    var d = document.createElement('div');
+    d.style.cssText = 'position:fixed;inset:0;display:flex;align-items:center;' +
+      'justify-content:center;padding:24px;text-align:center;color:#9a9a94;' +
+      'font:13px/1.5 system-ui,-apple-system,sans-serif;';
+    d.textContent = text;
+    document.body.appendChild(d);
+  }
+  function fail(e) {
+    var msg = String((e && (e.message || e.reason)) || 'ошибка сцены');
+    paintFail('Персонаж не смог запуститься в этом браузере: ' + msg.slice(0, 160) +
+      '. Сцена требует WebGL.');
+    try { parent.postMessage({ pet: JSON.stringify({ ev: 'error', msg: msg.slice(0, 300) }) }, '*'); } catch (_) {}
+  }
+  window.addEventListener('error', fail);
+  window.addEventListener('unhandledrejection', fail);
   window.addEventListener('message', function (e) {
     var d = e.data;
     if (!d || d.pet === undefined) return;

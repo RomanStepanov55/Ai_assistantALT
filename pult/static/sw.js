@@ -5,7 +5,7 @@ const SHELL = [
   "/manifest.webmanifest",
   "/icons/icon-192.png", "/icons/icon-512.png",
 ];
-const CACHE = "alontito-shell-v4";
+const CACHE = "alontito-shell-v5";
 
 self.addEventListener("install", (event) => {
   event.waitUntil(

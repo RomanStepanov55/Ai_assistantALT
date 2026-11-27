@@ -555,9 +555,23 @@ window.addEventListener("message", (e) => {
   const d = e.data;
   if (!d || !d.pet) return;
   try {
-    if (JSON.parse(d.pet).ev === "ready") setTimeout(petIntro, 150);
+    const msg = JSON.parse(d.pet);
+    if (msg.ev === "ready") setTimeout(petIntro, 150);
+    else if (msg.ev === "error") petFail(String(msg.msg || "").slice(0, 180));
   } catch (err) {}
 });
+
+// Сцена умерла (нет WebGL, упал импорт) — сказать словами, не тёмной пустотой.
+function petFail(msg) {
+  const wrap = document.querySelector(".pet-frame-wrap");
+  if (!wrap || wrap.dataset.petFail) return;
+  wrap.dataset.petFail = "1";
+  const note = document.createElement("div");
+  note.className = "pet-fail";
+  note.textContent = "Персонаж не смог запуститься в этом браузере: " +
+    msg + " — сцена требует WebGL.";
+  wrap.appendChild(note);
+}
 document.querySelectorAll("[data-pet-clip]").forEach((b) =>
   b.addEventListener("click", () => petSay(b.dataset.petClip)));
 

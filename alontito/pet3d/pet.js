@@ -35,6 +35,8 @@ const STAGE_W = 1.75;        // сколько метров сцены поме�
 const FEET_V = 0.90;         // на какой доле высоты окна находятся ступни
 const CHAR_U = 0.36;         // на какой доле ширины окна стоит персонаж
 const CAM_DIST = 5.0;
+const CHAR_VIS_H = 1.9;      // минимум метров по вертикали: на широких-коротких
+                             // окнах (веб-пульт) персонаж должен влезать целиком
 const PORTAL_Z = -0.50;      // портал справа на экране (= -Z), открыт к персонажу
 const PORTAL_BASE = 0.17;    // портал висит над полом, слот на уровне руки
 const PORTAL_H = 0.66;
@@ -57,7 +59,9 @@ function fit() {
   renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 1.5));
   renderer.setSize(w, h, false);
   viewW = w; viewH = h;
-  const visH = STAGE_W / (w / h);
+  // На портретных окнах сцена ограничена шириной (STAGE_W), на широких-коротких
+  // (веб-пульт на ПК) — высотой: персонаж целиком важнее узкого кадра.
+  const visH = Math.max(STAGE_W / (w / h), CHAR_VIS_H);
   camera.fov = THREE.MathUtils.radToDeg(2 * Math.atan((visH / 2) / CAM_DIST));
   camera.aspect = w / h;
   camera.updateProjectionMatrix();

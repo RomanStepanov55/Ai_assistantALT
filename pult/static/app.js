@@ -1,619 +1,639 @@
-/* Alontito Pult — логика фронтенда (vanilla JS, без сборки и зависимостей).
-   Пульт только читает: два действия («Проверка HUD», «Наблюдать сцену») —
-   единственные, которые знает сервер, и других кнопок здесь нет. */
-(function () {
-  "use strict";
+/* Алонтито — приложение агента. Один файл, без сборки и зависимостей.
+   Всё, что показывает экран, приходит из API; числа без данных — тире,
+   не ноль. Токен хранится в localStorage и убирается из адреса. */
+"use strict";
 
-  var FONT = 'system-ui, -apple-system, "Segoe UI", Roboto, sans-serif';
-  var THEME_KEY = "pult_theme";
-  var THEME_MODES = ["system", "light", "dark"];
-  var THEME_LABEL = { system: "как в системе", light: "светлая", dark: "тёмная" };
-  var THEME_ICON = {
-    system: '<svg viewBox="0 0 16 16" aria-hidden="true"><rect x="2.5" y="3" width="11" height="8" rx="1"/><path d="M5.5 13.5h5M8 11v2.5"/></svg>',
-    light: '<svg viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="3"/><path d="M8 1.5v1.6M8 12.9v1.6M1.5 8h1.6M12.9 8h1.6M3.4 3.4l1.1 1.1M11.5 11.5l1.1 1.1M12.6 3.4l-1.1 1.1M4.5 11.5l-1.1 1.1"/></svg>',
-    dark: '<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M13 9.5A5.5 5.5 0 0 1 6.5 3a5.5 5.5 0 1 0 6.5 6.5z"/></svg>'
-  };
+/* ------------------------------------------------------------- helpers */
 
-  // ---- helpers ------------------------------------------------------------
-  function $(id) { return document.getElementById(id); }
-  function setText(id, text) { var el = $(id); if (el) el.textContent = text; }
-  function cssVar(name) {
-    return getComputedStyle(document.documentElement).getPropertyValue(name).trim();
-  }
-  function fmtInt(v) { return Number(v).toLocaleString("ru-RU"); }
-  function plural(n, one, few, many) {
-    var m10 = n % 10, m100 = n % 100;
-    if (m10 === 1 && m100 !== 11) return one;
-    if (m10 >= 2 && m10 <= 4 && (m100 < 12 || m100 > 14)) return few;
-    return many;
-  }
-  function hhmm(t) {
-    if (!t) return "";
-    var d = new Date(t * 1000);
-    return ("0" + d.getHours()).slice(-2) + ":" + ("0" + d.getMinutes()).slice(-2);
-  }
-  function fmtShort(v) {
-    var a = Math.abs(v);
-    if (a >= 1e6) return (v / 1e6).toLocaleString("ru-RU", { maximumFractionDigits: 1 }) + " млн";
-    if (a >= 1e3) return (v / 1e3).toLocaleString("ru-RU", { maximumFractionDigits: 0 }) + " тыс";
-    return String(Math.round(v));
-  }
+const $ = (id) => document.getElementById(id);
+const esc = (s) => String(s == null ? "" : s)
+  .replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;")
+  .replaceAll('"', "&quot;");
+const dash = (v) => (v === null || v === undefined || v === "") ? "—" : v;
+const fmtTime = (ts) => {
+  if (!ts) return "—";
+  const d = new Date(ts * 1000);
+  return d.toLocaleDateString("ru", { day: "2-digit", month: "2-digit" }) +
+    " " + d.toLocaleTimeString("ru", { hour: "2-digit", minute: "2-digit" });
+};
 
-  // ---- token ------------------------------------------------------------
-  var TOKEN = new URLSearchParams(location.search).get("token")
-           || localStorage.getItem("pult_token") || "";
-  function saveToken(t) { TOKEN = t; localStorage.setItem("pult_token", t); }
-  function showLogin(msg) {
-    $("login").classList.remove("hidden");
-    $("login-error").textContent = msg || "";
+async function api(path, opts = {}) {
+  const headers = Object.assign({ "X-Pult-Token": localStorage.getItem("pult_token") || "" }, opts.headers || {});
+  if (opts.json) {
+    headers["Content-Type"] = "application/json";
+    opts = Object.assign({}, opts, { body: JSON.stringify(opts.json), headers });
+  } else {
+    opts = Object.assign({}, opts, { headers });
   }
-  if (!TOKEN) showLogin();
-  $("token-save").onclick = function () {
-    var v = $("token-input").value.trim();
-    if (v) { saveToken(v); location.reload(); }
-  };
-  // токен из ссылки сохраняем и убираем из адресной строки: перезагрузка
-  // не выкидывает на экран входа, а ссылка с токеном не остаётся в истории
-  if (TOKEN && new URLSearchParams(location.search).get("token")) {
-    saveToken(TOKEN);
-    try { history.replaceState(null, "", location.pathname); } catch (e) {}
-  }
+  const resp = await fetch(path, opts);
+  if (resp.status === 401) { showLogin("Сессия недействительна"); throw new Error("401"); }
+  const text = await resp.text();
+  let data = {};
+  try { data = text ? JSON.parse(text) : {}; } catch (e) { data = { raw: text }; }
+  if (!resp.ok) throw Object.assign(new Error(data.error || data.reason || resp.statusText), { data, status: resp.status });
+  return data;
+}
 
-  function api(path, opts) {
-    opts = opts || {};
-    opts.headers = Object.assign({ "X-Pult-Token": TOKEN }, opts.headers || {});
-    if (opts.body && typeof opts.body !== "string") {
-      opts.body = JSON.stringify(opts.body);
-      opts.headers["Content-Type"] = "application/json";
-    }
-    return fetch(path, opts).then(function (r) {
-      if (r.status === 401) {
-        // «Неверный токен» только после реальной попытки: при первом входе
-        // без токена экран входа молчит
-        if (TOKEN) showLogin("Неверный токен");
-        throw new Error("auth");
-      }
-      return r.json();
+/* --------------------------------------------------------------- token */
+
+let isMaster = false;
+
+function showLogin(note) {
+  $("login-error").textContent = note || "";
+  $("login").classList.remove("hidden");
+  $("token-input").focus();
+}
+
+function hideLogin() { $("login").classList.add("hidden"); }
+
+async function tryToken(token, deviceName) {
+  // 6 цифр без дефисов — это код сопряжения: обменяем на токен устройства.
+  if (/^\d{6}$/.test(token)) {
+    const paired = await fetch("/api/pair", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ code: token, name: deviceName || "устройство" }),
     });
+    const data = await paired.json();
+    if (!paired.ok) throw new Error(data.reason || "код не принят");
+    token = data.token;
+    localStorage.setItem("pult_device", data.name || "устройство");
   }
+  localStorage.setItem("pult_token", token);
+  const probe = await fetch("/api/state", { headers: { "X-Pult-Token": token } });
+  if (probe.status === 401) { localStorage.removeItem("pult_token"); throw new Error("токен не принят сервером"); }
+  const url = new URL(location.href);
+  if (url.searchParams.has("token")) { url.searchParams.delete("token"); history.replaceState(null, "", url.pathname); }
+  hideLogin();
+  boot();
+}
 
-  // ---- theme ---------------------------------------------------------------
-  var lastStatus = null;
+$("token-save").addEventListener("click", () => {
+  $("login-error").textContent = "";
+  tryToken($("token-input").value.trim(), $("device-name").value.trim())
+    .catch((e) => { $("login-error").textContent = e.message; });
+});
+$("token-input").addEventListener("keydown", (e) => { if (e.key === "Enter") $("token-save").click(); });
 
-  function themeMode() {
+/* --------------------------------------------------------------- theme */
+
+const THEMES = ["system", "light", "dark"];
+const THEME_LABEL = { system: "Тема: как в системе", light: "Тема: светлая", dark: "Тема: тёмная" };
+const THEME_ICON = {
+  system: '<svg viewBox="0 0 16 16"><circle cx="8" cy="8" r="5.5"/><path d="M8 2.5v11M8 2.5a5.5 5.5 0 0 1 0 11"/></svg>',
+  light: '<svg viewBox="0 0 16 16"><circle cx="8" cy="8" r="3.2"/><path d="M8 1.5v1.6M8 12.9v1.6M1.5 8h1.6M12.9 8h1.6M3.5 3.5l1.1 1.1M11.4 11.4l1.1 1.1M12.5 3.5l-1.1 1.1M4.6 11.4l-1.1 1.1"/></svg>',
+  dark: '<svg viewBox="0 0 16 16"><path d="M13 9.5A6 6 0 0 1 6.5 3 6 6 0 1 0 13 9.5z"/></svg>',
+};
+function applyTheme(mode) {
+  const dark = mode === "dark" || (mode === "system" && matchMedia("(prefers-color-scheme: dark)").matches);
+  document.documentElement.setAttribute("data-theme", dark ? "dark" : "light");
+  $("theme-label").textContent = THEME_LABEL[mode];
+  $("theme-icon").innerHTML = THEME_ICON[mode];
+}
+$("btn-theme").addEventListener("click", () => {
+  const cur = localStorage.getItem("pult_theme") || "system";
+  const next = THEMES[(THEMES.indexOf(cur) + 1) % THEMES.length];
+  localStorage.setItem("pult_theme", next);
+  applyTheme(next);
+});
+applyTheme(localStorage.getItem("pult_theme") || "system");
+
+/* ---------------------------------------------------------- navigation */
+
+function openTab(name) {
+  document.querySelectorAll(".tab").forEach((t) => {
+    const on = t.dataset.tab === name;
+    t.classList.toggle("active", on);
+    if (on) t.setAttribute("aria-current", "page"); else t.removeAttribute("aria-current");
+  });
+  document.querySelectorAll(".page").forEach((p) => p.classList.remove("active"));
+  const page = $("tab-" + name);
+  if (page) page.classList.add("active");
+  closeMenu();
+  if (name === "memory") loadMemory();
+  if (name === "automations") loadAutomations();
+  if (name === "inbox") loadInbox();
+  if (name === "journal") loadJournal();
+  if (name === "settings") loadSettings();
+}
+document.querySelectorAll(".tab").forEach((t) =>
+  t.addEventListener("click", () => openTab(t.dataset.tab)));
+
+const isMobile = () => matchMedia("(max-width: 900px)").matches;
+function closeMenu() { $("sidebar").classList.remove("open"); $("btn-menu").setAttribute("aria-expanded", "false"); }
+$("btn-menu").addEventListener("click", () => {
+  const open = !$("sidebar").classList.contains("open");
+  $("sidebar").classList.toggle("open", open);
+  $("btn-menu").setAttribute("aria-expanded", String(open));
+});
+$("btn-menu-close").addEventListener("click", closeMenu);
+document.addEventListener("click", (e) => {
+  if (isMobile() && $("sidebar").classList.contains("open") &&
+      !$("sidebar").contains(e.target) && !$("btn-menu").contains(e.target)) closeMenu();
+});
+
+/* ------------------------------------------------------------ conn/SSE */
+
+let sse = null;
+function connectSSE() {
+  if (sse) sse.close();
+  const token = localStorage.getItem("pult_token") || "";
+  sse = new EventSource("/api/events?token=" + encodeURIComponent(token));
+  sse.onopen = () => setConn(true, "на связи");
+  sse.onerror = () => setConn(false, "нет связи");
+  sse.onmessage = (ev) => {
+    let msg = {};
+    try { msg = JSON.parse(ev.data); } catch (e) { return; }
+    if (msg.type === "log") appendJournalLine(msg.line);
+    if (msg.type === "chat_delta") streamChunk(msg.text);
+    if (msg.type === "chat_done") finishStream(msg);
+    if (msg.type === "notification") showNotification(msg);
+    if (msg.type === "status") renderState(msg.status);
+  };
+}
+function setConn(on, text) {
+  for (const [dot, label] of [[$("conn-dot"), $("conn-text")], [$("m-conn-dot"), $("m-conn-text")]]) {
+    dot.classList.toggle("on", on);
+    label.textContent = text;
+  }
+}
+
+/* ------------------------------------------------------- notifications */
+
+function ensureNotifications() {
+  if (!("Notification" in window)) { flashBanner("Уведомления не поддерживаются этим браузером"); return; }
+  Notification.requestPermission().then((p) => {
+    if (p === "granted") flashBanner("Уведомления включены");
+    else flashBanner("Уведомления не разрешены в настройках браузера");
+  });
+}
+$("btn-notify").addEventListener("click", ensureNotifications);
+
+function showNotification(msg) {
+  const text = (msg.kind === "reminder" ? "Напоминание: " : "") + (msg.text || "");
+  flashBanner(text, 8000);
+  petSay("point");
+  if ("Notification" in window && Notification.permission === "granted") {
+    try { new Notification("Алонтито", { body: text, tag: "alontito-reminder" }); } catch (e) {}
+  }
+}
+
+let bannerTimer = null;
+function flashBanner(text, ms = 4000) {
+  const el = $("banner");
+  el.textContent = text;
+  el.classList.remove("hidden");
+  clearTimeout(bannerTimer);
+  bannerTimer = setTimeout(() => el.classList.add("hidden"), ms);
+}
+
+/* --------------------------------------------------------- state render */
+
+function renderState(state) {
+  if (!state) return;
+  const brain = (state.agent || {}).brain || {};
+  const on = brain.enabled && brain.reachable;
+  const sub = on
+    ? "Отвечает ваш собственный мозг: " + esc(brain.model || "локальная модель") + "."
+    : "Свой мозг ещё не подключён — Алонтито отвечает навыками и не выдумывает.";
+  $("chat-sub").textContent = sub;
+  const train = (state.agent || {}).training || {};
+  $("train-meta").textContent = train.examples != null
+    ? `примеров ${dash(train.examples)} · одобрено ${dash(train.approved)}`
+    : "—";
+  $("facts-meta").textContent = (state.agent || {}).facts != null
+    ? `${dash(state.agent.facts)} факт(ов)`
+    : "";
+}
+
+/* ---------------------------------------------------------------- chat */
+
+let streaming = null;
+
+function chatBubble(role, text) {
+  const div = document.createElement("div");
+  div.className = "msg " + (role === "user" ? "user" : "assistant");
+  div.textContent = text;
+  const empty = $("chat-empty");
+  if (empty) empty.classList.add("hidden");
+  $("chat-log").appendChild(div);
+  $("chat-log").scrollTop = $("chat-log").scrollHeight;
+  return div;
+}
+
+function streamChunk(text) {
+  if (!streaming) streaming = chatBubble("assistant", "");
+  streaming.textContent += text;
+  $("chat-log").scrollTop = $("chat-log").scrollHeight;
+}
+
+function finishStream(msg) {
+  if (streaming) { streaming.remove(); streaming = null; }
+  if (msg && msg.question && msg.answer) {
+    chatBubble("user", msg.question);
+    chatBubble("assistant", msg.answer);
+  }
+  petSay("nod");
+}
+
+async function loadChatHistory() {
+  try {
+    const data = await api("/api/chat/history");
+    const log = $("chat-log");
+    log.innerHTML = "";
+    const empty = document.createElement("p");
+    empty.className = "empty";
+    empty.id = "chat-empty";
+    empty.textContent = "Напишите Алонтито. Он помнит факты, ставит напоминания и отвечает — не выдумывая.";
+    log.appendChild(empty);
+    for (const m of data.messages || []) chatBubble(m.role === "user" ? "user" : "assistant", m.text);
+  } catch (e) { /* без истории просто начнём с чистого листа */ }
+}
+
+async function sendChat() {
+  const input = $("chat-text");
+  const text = input.value.trim();
+  if (!text) return;
+  input.value = "";
+  chatBubble("user", text);
+  petSay("think");
+  try {
+    const reply = await api("/api/chat", { method: "POST", json: { message: text, device: "web" } });
+    if (streaming) { streaming.remove(); streaming = null; }
+    chatBubble("assistant", reply.answer);
+    if (reply.source === "offline") flashBanner("Мозг не подключён — это честный ответ без модели");
+    petSay("nod");
+  } catch (e) {
+    if (e.message !== "401") chatBubble("assistant", "Ошибка: " + e.message);
+  }
+}
+$("chat-send").addEventListener("click", sendChat);
+$("chat-text").addEventListener("keydown", (e) => { if (e.key === "Enter") sendChat(); });
+document.querySelectorAll(".chip").forEach((c) =>
+  c.addEventListener("click", () => { $("chat-text").value = c.textContent.replace("…", ""); $("chat-text").focus(); }));
+
+/* --------------------------------------------------------- attachments */
+
+$("btn-attach").addEventListener("click", () => $("file-input").click());
+$("file-input").addEventListener("change", async () => {
+  for (const file of $("file-input").files) {
+    const kind = /\.(png|jpe?g|webp|gif)$/i.test(file.name) ? "image"
+      : /\.(wav|m4a|ogg|oga|webm|mp3)$/i.test(file.name) ? "voice" : "file";
     try {
-      var m = localStorage.getItem(THEME_KEY);
-      return THEME_MODES.indexOf(m) >= 0 ? m : "system";
-    } catch (e) {
-      return "system";
-    }
+      await api("/api/inbox?kind=" + kind + "&filename=" + encodeURIComponent(file.name) +
+                "&note=" + encodeURIComponent("из чата"), { method: "POST", body: file });
+      flashBanner("Файл во «Входящие»: " + file.name);
+    } catch (e) { flashBanner("Не удалось отправить: " + e.message); }
   }
+  $("file-input").value = "";
+});
 
-  function applyTheme() {
-    var mode = themeMode();
-    var dark = mode === "dark" ||
-      (mode === "system" && window.matchMedia("(prefers-color-scheme: dark)").matches);
-    document.documentElement.setAttribute("data-theme", dark ? "dark" : "light");
-    var meta = document.querySelector('meta[name="theme-color"]');
-    if (meta) meta.setAttribute("content", dark ? "#161615" : "#f5f5f4");
-    var icon = $("theme-icon");
-    if (icon) icon.innerHTML = THEME_ICON[mode];
-    setText("theme-label", "Тема: " + THEME_LABEL[mode]);
-    var btn = $("btn-theme");
-    if (btn) btn.setAttribute("aria-label", "Тема: " + THEME_LABEL[mode] + ". Сменить тему");
-    if (lastStatus) drawChart(lastStatus.telemetry || []);   // цвета берутся из токенов
+let recorder = null, recChunks = [];
+$("btn-mic").addEventListener("click", async () => {
+  if (recorder && recorder.state === "recording") {
+    recorder.stop();
+    return;
   }
-
-  // ---- navigation ----------------------------------------------------------
-  var sidebar = $("sidebar");
-
-  function setMenu(open) {
-    if (!sidebar) return;
-    sidebar.classList.toggle("open", open);
-    var b = $("btn-menu");
-    if (b) b.setAttribute("aria-expanded", open ? "true" : "false");
-  }
-
-  document.querySelectorAll(".tab").forEach(function (b) {
-    b.onclick = function () {
-      document.querySelectorAll(".tab").forEach(function (x) {
-        x.classList.remove("active");
-        x.removeAttribute("aria-current");
-      });
-      document.querySelectorAll(".page").forEach(function (x) { x.classList.remove("active"); });
-      b.classList.add("active");
-      b.setAttribute("aria-current", "page");
-      $("tab-" + b.dataset.tab).classList.add("active");
-      setMenu(false);
-      if (b.dataset.tab === "memory") { loadMemory(); loadChatHistory(); }
-      if (b.dataset.tab === "knowledge") loadKnowledge();
-      // у скрытой панели canvas без ширины: рисуем, когда она снова видна
-      if (b.dataset.tab === "panel" && lastStatus) drawChart(lastStatus.telemetry || []);
+  try {
+    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    const mime = MediaRecorder.isTypeSupported("audio/webm") ? "audio/webm" : "";
+    recorder = new MediaRecorder(stream, mime ? { mimeType: mime } : undefined);
+    recChunks = [];
+    recorder.ondataavailable = (e) => recChunks.push(e.data);
+    recorder.onstop = async () => {
+      stream.getTracks().forEach((t) => t.stop());
+      const blob = new Blob(recChunks, { type: mime || "audio/webm" });
+      const ext = mime ? ".webm" : ".wav";
+      $("btn-mic").classList.remove("recording");
+      $("attach-note").textContent = "";
+      try {
+        await api("/api/inbox?kind=voice&filename=voice" + ext + "&note=голосовое из чата",
+                  { method: "POST", body: blob });
+        flashBanner("Голосовое во «Входящие» — расшифрую, когда установлен Vosk");
+      } catch (e) { flashBanner("Не удалось записать: " + e.message); }
     };
-  });
-  $("btn-menu").onclick = function () { setMenu(!sidebar.classList.contains("open")); };
-  $("btn-menu-close").onclick = function () { setMenu(false); };
-  $("canvas").addEventListener("click", function (e) {
-    if (sidebar.classList.contains("open") && !sidebar.contains(e.target)) setMenu(false);
-  });
-
-  // ---- status --------------------------------------------------------------
-  function setKpi(id, value) {
-    var el = $(id);
-    if (!el) return;
-    if (value == null) {                    // числа нет — тихое тире
-      el.textContent = "—";
-      el.classList.add("missing");
-    } else {
-      el.textContent = fmtInt(value);
-      el.classList.remove("missing");
-    }
+    recorder.start();
+    $("btn-mic").classList.add("recording");
+    $("attach-note").textContent = "запись идёт — нажмите на микрофон ещё раз";
+  } catch (e) {
+    flashBanner("Микрофон недоступен: " + e.message);
   }
+});
 
-  function setConn(on) {
-    ["conn-dot", "m-conn-dot"].forEach(function (id) {
-      var d = $(id);
-      if (d) d.classList.toggle("on", on);
-    });
-    // время живёт в штампе страницы; здесь — только состояние глаза
-    setText("conn-text", on ? "видит окно игры" : "окно игры не найдено");
-    setText("m-conn-text", on ? "в игре" : "нет окна");
+/* --------------------------------------------------------------- memory */
+
+async function loadMemory() {
+  try {
+    const [facts, training] = await Promise.all([api("/api/facts"), api("/api/training")]);
+    renderFacts(facts.facts || []);
+    renderTraining(training.pending || [], training.stats || {});
+  } catch (e) { /* 401 handled globally */ }
+}
+$("btn-memory-refresh").addEventListener("click", loadMemory);
+
+function renderFacts(facts) {
+  const ul = $("facts-list");
+  ul.innerHTML = "";
+  if (!facts.length) {
+    ul.innerHTML = '<li class="empty">Фактов пока нет. Скажите Алонтито «запомни: …» или добавьте здесь.</li>';
+    return;
   }
-
-  function renderStatus(s) {
-    lastStatus = s;
-    var met = (s.last_health && s.last_health.metrics) || {};
-    var on = !!s.attached;
-    setConn(on);
-    var st = $("c-attached");
-    if (st) {
-      st.textContent = on ? "окно игры видно" : "окно игры не найдено";
-      st.classList.toggle("on", on);
-    }
-    setText("panel-sub", on
-      ? "Алонтито смотрит на игру и ничего не нажимает."
-      : "Алонтито не играет за вас: откройте игру, и он будет только смотреть.");
-    setText("stamp", s.time ? "обновлено в " + s.time : "ещё нет данных");
-    setKpi("c-strength", met.strength);
-    setKpi("c-gems", met.gems);
-    setKpi("c-sessions", s.memory && s.memory.sessions != null ? s.memory.sessions : 0);
-    var age = s.frame_age;
-    if (age == null) setText("frame-meta", "нет кадра");
-    else setText("frame-meta", "кадр " + Math.round(age) + " " +
-      plural(Math.round(age), "секунду", "секунды", "секунд") + " назад");
-    drawChart(s.telemetry || []);
+  for (const f of facts.slice().reverse()) {
+    const li = document.createElement("li");
+    li.innerHTML = `<span class="fact-text">${esc(f.text)}</span>` +
+      `<span class="pill">${esc(f.status)}</span>` +
+      `<span class="fact-src">${esc(f.source)} · ${esc(f.date)}</span>`;
+    ul.appendChild(li);
   }
+}
 
-  // ---- chart ---------------------------------------------------------------
-  // Одна линия чернилами, прямые сегменты, без заливки. 3–5 бледных горизонтальных
-  // рисок с круглыми шагами, ноль подписей там, где читать нечего.
-  function niceStep(raw) {
-    var p = Math.pow(10, Math.floor(Math.log(raw) / Math.LN10));
-    var m = raw / p;
-    return (m <= 1 ? 1 : m <= 2 ? 2 : m <= 5 ? 5 : 10) * p;
+$("fact-form").addEventListener("submit", async (e) => {
+  e.preventDefault();
+  const input = $("fact-text");
+  const text = input.value.trim();
+  if (!text) return;
+  try {
+    await api("/api/facts", { method: "POST", json: { text } });
+    input.value = "";
+    loadMemory();
+  } catch (err) { flashBanner("Не удалось: " + err.message); }
+});
+
+function renderTraining(pending, stats) {
+  const ul = $("training-list");
+  ul.innerHTML = "";
+  $("training-meta").textContent =
+    `примеров ${dash(stats.examples)} · одобрено ${dash(stats.approved)}`;
+  if (!pending.length) {
+    ul.innerHTML = '<li class="empty">Кандидатов нет: они появляются после ответов мозга — ваш ✓ отправляет их в датасет.</li>';
+    return;
   }
+  for (const p of pending) {
+    const li = document.createElement("li");
+    li.className = "train-item";
+    li.innerHTML =
+      `<div class="train-q">${esc(p.prompt)}</div>` +
+      `<div class="train-a">${esc(p.answer)}</div>` +
+      `<div class="train-src">${esc(p.source)}</div>` +
+      `<div class="train-actions">` +
+      `<button class="btn" data-approve="${esc(p.fingerprint)}">✓ в датасет</button>` +
+      `<button class="btn btn-quiet" data-dismiss="${esc(p.fingerprint)}">✗</button></div>`;
+    ul.appendChild(li);
+  }
+  ul.querySelectorAll("[data-approve]").forEach((b) => b.addEventListener("click", async () => {
+    await api("/api/training/approve", { method: "POST", json: { fingerprint: b.dataset.approve } });
+    loadMemory();
+  }));
+  ul.querySelectorAll("[data-dismiss]").forEach((b) => b.addEventListener("click", async () => {
+    await api("/api/training/dismiss", { method: "POST", json: { fingerprint: b.dataset.dismiss } });
+    loadMemory();
+  }));
+}
 
-  function drawChart(points) {
-    var cv = $("chart");
-    var w = cv.clientWidth, h = cv.clientHeight || 200;
-    if (!w) return;                         // панель сейчас скрыта
-    var dpr = window.devicePixelRatio || 1;
-    cv.width = Math.round(w * dpr);
-    cv.height = Math.round(h * dpr);
-    var ctx = cv.getContext("2d");
-    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-    ctx.clearRect(0, 0, w, h);
-    ctx.font = "11px " + FONT;
-    var ink = cssVar("--text"), muted = cssVar("--muted");
-    var grid = cssVar("--grid"), base = cssVar("--control");
-    var padT = 12, padB = 24, padR = 12;
+$("btn-export").addEventListener("click", async () => {
+  try {
+    const r = await api("/api/training/export", { method: "POST" });
+    flashBanner(`Выгружено в датасет: ${dash(r.exported)} · осталось ${dash(r.pending)}`);
+  } catch (e) { flashBanner("Не удалось выгрузить: " + e.message); }
+});
 
-    function hline(x1, y, x2, color, width) {
-      ctx.strokeStyle = color; ctx.lineWidth = width;
-      ctx.beginPath(); ctx.moveTo(x1, y); ctx.lineTo(x2, y); ctx.stroke();
-    }
+/* --------------------------------------------------------- automations */
 
-    var vals = points.filter(function (p) { return p.strength != null; });
-    setText("chart-meta", vals.length + " " + plural(vals.length, "замер", "замера", "замеров"));
-
-    if (vals.length < 2) {                  // честная пустота: одна линия и подпись
-      hline(0, h - padB + 0.5, w, grid, 1);
-      ctx.fillStyle = muted; ctx.textAlign = "left"; ctx.textBaseline = "top";
-      ctx.fillText(vals.length ? "Пока один замер: график появится со вторым."
-                               : "Замеров силы пока нет.", 0, 8);
+async function loadAutomations() {
+  try {
+    const data = await api("/api/automations");
+    const ul = $("auto-list");
+    ul.innerHTML = "";
+    const items = data.items || [];
+    if (!items.length) {
+      ul.innerHTML = '<li class="empty">Напоминаний нет. Пример: «напомни завтра в 9:00 позвонить».</li>';
       return;
     }
-
-    var lo = Infinity, hi = -Infinity;
-    vals.forEach(function (p) {
-      if (p.strength < lo) lo = p.strength;
-      if (p.strength > hi) hi = p.strength;
-    });
-    if (lo === hi) { var spread = Math.max(Math.abs(lo) * 0.05, 1); lo -= spread; hi += spread; }
-
-    var step = niceStep((hi - lo) / 4);
-    var bottom = Math.floor(lo / step) * step;
-    var top = Math.ceil(hi / step) * step;
-    while (Math.round((top - bottom) / step) > 5) {   // не больше пяти рисок
-      step *= 2;
-      bottom = Math.floor(lo / step) * step;
-      top = Math.ceil(hi / step) * step;
+    for (const a of items) {
+      const li = document.createElement("li");
+      li.className = "row auto-item";
+      li.innerHTML = `<div class="what"><strong>${esc(a.text)}</strong>` +
+        `<span class="auto-when">${esc(a.when)}</span></div>` +
+        `<div class="auto-actions">` +
+        `<button class="btn btn-quiet" data-run="${esc(a.id)}">Сработать</button>` +
+        `<button class="btn btn-quiet" data-del="${esc(a.id)}">Убрать</button></div>`;
+      ul.appendChild(li);
     }
+    ul.querySelectorAll("[data-run]").forEach((b) => b.addEventListener("click", async () => {
+      await api("/api/automations/" + b.dataset.run + "/run", { method: "POST" });
+      flashBanner("Уведомление отправлено на устройства");
+    }));
+    ul.querySelectorAll("[data-del]").forEach((b) => b.addEventListener("click", async () => {
+      await api("/api/automations/" + b.dataset.del, { method: "DELETE" });
+      loadAutomations();
+    }));
+  } catch (e) { /* 401 handled globally */ }
+}
 
-    var plotH = h - padT - padB;
-    var padL = Math.ceil(ctx.measureText(fmtShort(top)).width) + 16;
-    var inner = w - padL - padR;
-    function Y(v) { return padT + plotH - (v - bottom) / (top - bottom) * plotH; }
+$("auto-form").addEventListener("submit", async (e) => {
+  e.preventDefault();
+  const input = $("auto-text");
+  const text = input.value.trim();
+  if (!text) return;
+  try {
+    await api("/api/automations", { method: "POST", json: { text } });
+    input.value = "";
+    loadAutomations();
+  } catch (err) { flashBanner(err.message); }
+});
 
-    // время идёт по временной шкале, если оно есть у точек
-    var n = points.length;
-    var t0 = points[0].t, t1 = points[n - 1].t;
-    var byTime = t0 && t1 && t1 > t0;
-    function X(i) {
-      if (!byTime) return padL + inner * i / (n - 1);
-      return padL + inner * (points[i].t - t0) / (t1 - t0);
+/* --------------------------------------------------------------- inbox */
+
+function fileUrl(item) {
+  return "/api/inbox/" + esc(item.id) + "/file?token=" +
+    encodeURIComponent(localStorage.getItem("pult_token") || "");
+}
+
+async function loadInbox() {
+  try {
+    const data = await api("/api/inbox?limit=100");
+    const ul = $("inbox-list");
+    ul.innerHTML = "";
+    const items = (data.items || []).slice().reverse();
+    if (!items.length) {
+      ul.innerHTML = '<li class="empty">Пусто. С телефона сюда можно прислать фото, голосовое или файл.</li>';
+      return;
     }
-
-    ctx.textAlign = "right"; ctx.textBaseline = "middle";
-    for (var i = 0, ticks = Math.round((top - bottom) / step); i <= ticks; i++) {
-      var t = bottom + i * step, y = Math.round(Y(t)) + 0.5;
-      hline(padL, y, w - padR, i === 0 ? base : grid, 1);
-      ctx.fillStyle = muted;
-      ctx.fillText(fmtShort(t), padL - 8, y);
+    for (const it of items) {
+      const li = document.createElement("li");
+      li.className = "inbox-item";
+      const kindIcon = { text: "заметка", voice: "голос", image: "фото", file: "файл" }[it.kind] || it.kind;
+      const statePill = it.state === "new" ? '<span class="pill pill-new">новое</span>' : "";
+      let body = "";
+      if (it.kind === "text") body = `<div class="inbox-text">${esc(it.text)}</div>`;
+      else if (it.kind === "image") body = `<img class="inbox-img" src="${fileUrl(it)}" alt="фото">`;
+      else if (it.kind === "voice") body = `<audio controls preload="none" src="${fileUrl(it)}"></audio>`;
+      else body = `<div class="inbox-text">файл: ${esc(it.filename)} (${Math.round((it.size || 0) / 1024)} КБ)</div>`;
+      li.innerHTML =
+        `<div class="inbox-head"><span class="pill">${kindIcon}</span>` +
+        `<span class="fresh">${esc(fmtTime(it.ts))} · ${Math.round((it.size || 0) / 1024)} КБ</span>${statePill}</div>` +
+        body +
+        (it.transcript ? `<div class="inbox-transcript">«${esc(it.transcript)}»</div>` : "") +
+        `<div class="inbox-actions">` +
+        (it.kind === "voice" && !it.transcript ? `<button class="btn btn-quiet" data-trans="${esc(it.id)}">Расшифровать</button>` : "") +
+        (it.state !== "processed" ? `<button class="btn btn-quiet" data-process="${esc(it.id)}">Передать агенту</button>` : "") +
+        `<button class="btn btn-quiet" data-dismiss="${esc(it.id)}">Обработано</button></div>`;
+      ul.appendChild(li);
     }
+    ul.querySelectorAll("[data-trans]").forEach((b) => b.addEventListener("click", async () => {
+      const r = await api("/api/inbox/" + b.dataset.trans + "/transcript", { method: "POST" });
+      flashBanner(r.transcript ? "«" + r.transcript + "»" : (r.detail || "расшифровка недоступна"));
+      loadInbox();
+    }));
+    ul.querySelectorAll("[data-process]").forEach((b) => b.addEventListener("click", async () => {
+      const r = await api("/api/inbox/" + b.dataset.process + "/process", { method: "POST" });
+      flashBanner(r.ok ? ("Агент: " + r.answer) : (r.detail || "не удалось обработать"));
+      loadInbox();
+    }));
+    ul.querySelectorAll("[data-dismiss]").forEach((b) => b.addEventListener("click", async () => {
+      await api("/api/inbox/" + b.dataset.dismiss + "/state", { method: "POST", json: { state: "processed" } });
+      loadInbox();
+    }));
+  } catch (e) { /* 401 handled globally */ }
+}
+$("btn-inbox-refresh").addEventListener("click", loadInbox);
 
-    ctx.strokeStyle = ink; ctx.lineWidth = 2; ctx.lineJoin = "round"; ctx.lineCap = "round";
-    ctx.beginPath();
-    var started = false, last = null;
-    points.forEach(function (p, i) {
-      if (p.strength == null) { started = false; return; }   // разрыв там, где замера не было
-      var x = X(i), y = Y(p.strength);
-      if (!started) { ctx.moveTo(x, y); started = true; } else ctx.lineTo(x, y);
-      last = { x: x, y: y };
-    });
-    ctx.stroke();
-    if (last) {                              // текущее значение — единственная точка
-      ctx.fillStyle = ink;
-      ctx.beginPath(); ctx.arc(last.x, last.y, 3, 0, Math.PI * 2); ctx.fill();
-    }
+/* -------------------------------------------------------------- journal */
 
-    ctx.fillStyle = muted; ctx.textAlign = "center"; ctx.textBaseline = "top";
-    var labels = Math.min(5, n);
-    for (var k = 0; k < labels; k++) {
-      var idx = labels === 1 ? 0 : Math.round(k * (n - 1) / (labels - 1));
-      var x = Math.max(padL + 20, Math.min(w - padR - 20, X(idx)));
-      ctx.fillText(hhmm(points[idx].t), x, h - padB + 8);
-    }
-  }
-
-  var resizeTimer = 0;
-  window.addEventListener("resize", function () {
-    clearTimeout(resizeTimer);
-    resizeTimer = setTimeout(function () {
-      if (lastStatus) drawChart(lastStatus.telemetry || []);
-    }, 120);
-  });
-
-  // ---- frame ---------------------------------------------------------------
-  // <img> не умеет заголовок X-Pult-Token, поэтому токен идёт в query.
-  // Пока кадра нет, <img> скрыт: иначе браузер рисует значок битой картинки.
-  function refreshFrame() {
-    var img = $("frame");
-    var empty = $("frame-empty");
-    img.onload = function () {
-      img.classList.remove("hidden");
-      empty.classList.add("hidden");
-    };
-    img.onerror = function () {
-      img.classList.add("hidden");
-      empty.classList.remove("hidden");
-    };
-    img.src = "/api/frame?ts=" + Date.now() + "&token=" + encodeURIComponent(TOKEN);
-  }
-  setInterval(refreshFrame, 10000); refreshFrame();
-
-  function refreshAll() {
-    api("/api/status").then(renderStatus).catch(function () {});
-    refreshFrame();
-    journalSoon();
-  }
-  $("btn-refresh").onclick = refreshAll;
-
-  // ---- actions (только чтение: HUD и наблюдение сцены) -----------------------
-  function showResult(obj) {
-    var head = $("action-headline");
-    var box = $("action-result");
-    var isResult = obj && typeof obj === "object" && ("ok" in obj);
-    var failed = isResult && !obj.ok;
-    var error = isResult && !!obj.error;
-    head.textContent = "";
-    if (failed) {
-      var small = document.createElement("small");
-      small.textContent = error ? "Ошибка" : "Не получилось";
-      head.appendChild(small);
-    }
-    head.appendChild(document.createTextNode(isResult ? (obj.detail || obj.error || "") : String(obj)));
-    // красным — только настоящая ошибка; «окна нет» — не авария
-    head.className = "headline" + (error ? " error" : "");
-    box.textContent = typeof obj === "string" ? obj : JSON.stringify(obj, null, 2);
-    box.classList.remove("hidden");
-  }
-  document.querySelectorAll("[data-action]").forEach(function (b) {
-    b.onclick = function () {
-      b.disabled = true;
-      api("/api/action", { method: "POST", body: { name: b.dataset.action } })
-        .then(showResult)
-        .catch(function (e) { showResult("Не получилось: пульт не отвечает. " + e); })
-        .finally(function () { b.disabled = false; refreshAll(); });
-    };
-  });
-
-  // ---- chat ------------------------------------------------------------------
-  var chatLog = $("chat-log");
-  function addMsg(role, text) {
-    var e = $("chat-empty");
-    if (e) e.classList.add("hidden");
-    var d = document.createElement("div");
-    d.className = "msg " + role;
-    d.textContent = text;
-    chatLog.appendChild(d);
-    d.scrollIntoView({ block: "nearest" });
-  }
-  function sendChat(text) {
-    if (!text.trim()) return;
-    addMsg("user", text);
-    api("/api/chat", { method: "POST", body: { message: text } })
-      .then(function (r) { addMsg("assistant", r.answer || r.error); })
-      .catch(function (e) { addMsg("assistant", "Пульт не отвечает: " + e); });
-  }
-  $("chat-send").onclick = function () {
-    var inp = $("chat-text");
-    sendChat(inp.value); inp.value = "";
-  };
-  $("chat-text").addEventListener("keydown", function (e) {
-    if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); $("chat-send").click(); }
-  });
-  document.querySelectorAll(".chip").forEach(function (c) {
-    c.onclick = function () { sendChat(c.textContent); };
-  });
-
-  // ---- terminal (SSE) ----------------------------------------------------------
-  var term = $("term");
-  var termAtBottom = true;
-  term.addEventListener("scroll", function () {
-    termAtBottom = term.scrollHeight - term.scrollTop - term.clientHeight < 24;
-  });
-  function termAppend(node) {
-    term.appendChild(node);
+let journalLines = [];
+function appendJournalLine(line) {
+  journalLines.push(line);
+  if (journalLines.length > 400) journalLines = journalLines.slice(-400);
+  const term = $("term");
+  if (term) {
+    const div = document.createElement("div");
+    div.className = "term-line";
+    div.innerHTML = `<span class="term-note">${esc(line.slice(0, 19))}</span><span>${esc(line.slice(20))}</span>`;
+    term.appendChild(div);
     while (term.childNodes.length > 400) term.removeChild(term.firstChild);
-    if (termAtBottom) term.scrollTop = term.scrollHeight;   // не дёргаем листание
+    term.scrollTop = term.scrollHeight;
   }
-  function termLine(source, line) {
-    var d = document.createElement("div");
-    d.className = "term-line";
-    var s = document.createElement("span");
-    s.className = "term-src";
-    s.textContent = source;
-    var l = document.createElement("span");
-    l.className = "term-ln";
-    l.textContent = line;
-    d.appendChild(s); d.appendChild(l);
-    termAppend(d);
-  }
-  function termNote(text) {
-    var d = document.createElement("div");
-    d.className = "term-note";
-    d.textContent = text;
-    termAppend(d);
-  }
-  function connectSSE() {
-    var es = new EventSource("/api/events?token=" + encodeURIComponent(TOKEN));
-    es.onmessage = function (e) {
-      try {
-        var ev = JSON.parse(e.data);
-        if (ev.type === "log") termLine(ev.source, ev.line);
-        if (ev.type === "status") renderStatus(ev.status);
-      } catch (err) {}
-    };
-    es.onerror = function () {
-      termNote("Переподключение к журналу…");
-      es.close(); setTimeout(connectSSE, 3000);
-    };
-  }
-  connectSSE();
+}
+async function loadJournal() {
+  try {
+    const data = await api("/api/journal?n=200");
+    const term = $("term");
+    term.innerHTML = "";
+    journalLines = [];
+    for (const row of data.lines || []) appendJournalLine(row.line || row);
+  } catch (e) { /* 401 handled globally */ }
+}
 
-  // ---- memory -------------------------------------------------------------------
-  function cell(tr, text, cls) {
-    var td = document.createElement("td");
-    if (cls) td.className = cls;
-    td.textContent = text;
-    tr.appendChild(td);
-  }
-  function emptyItem(text) {
-    var li = document.createElement("li");
-    li.className = "empty";
-    li.textContent = text;
-    return li;
-  }
+/* ------------------------------------------------------------------ pet */
 
-  function loadMemory() {
-    api("/api/memory").then(function (m) {
-      var tb = document.querySelector("#skills-table tbody");
-      tb.innerHTML = "";
-      var skills = m.skills || [];
-      if (!skills.length) {
-        var tr = document.createElement("tr"), td = document.createElement("td");
-        td.colSpan = 4;
-        td.className = "empty-cell";
-        td.textContent = "Навыков с замерами пока нет.";
-        tr.appendChild(td); tb.appendChild(tr);
-      }
-      skills.forEach(function (s) {
-        var tr = document.createElement("tr");
-        cell(tr, String(s.name));
-        cell(tr, s.attempts == null ? "—" : fmtInt(s.attempts), "num");
-        cell(tr, s.success_rate == null ? "—" : Math.round(s.success_rate * 100) + "%", "num");
-        cell(tr, s.per_minute == null ? "—" : fmtInt(Math.round(s.per_minute)), "num");
-        tb.appendChild(tr);
-      });
-      setText("facts-count", "Фактов в памяти: " + fmtInt(m.facts || 0) +
-        ", открытых вопросов: " + fmtInt(m.questions_open || 0) + ".");
-    }).catch(function () {});
+function petSay(action) {
+  const frame = $("pet-frame");
+  if (frame && frame.contentWindow) {
+    try { frame.contentWindow.postMessage({ pet: JSON.stringify({ type: "play", clip: action }) }, "*"); } catch (e) {}
   }
+}
+document.querySelectorAll("[data-pet-clip]").forEach((b) =>
+  b.addEventListener("click", () => petSay(b.dataset.petClip)));
 
-  var HISTORY_ROWS = 8;                      // столько же строк, сколько влезает рядом
-  function loadChatHistory() {
-    api("/api/chat/history").then(function (r) {
-      var all = r.messages || [];
-      var shown = all.slice(-HISTORY_ROWS);
-      var ul = $("chat-history-list");
-      ul.innerHTML = "";
-      if (!shown.length) {
-        ul.appendChild(emptyItem("Переписки в пульте пока нет."));
-      } else {
-        shown.forEach(function (m) {
-          var li = document.createElement("li");
-          li.className = "row";
-          var who = document.createElement("span");
-          who.className = "who";
-          who.textContent = m.role === "user" ? "Вы" : "Алонтито";
-          var what = document.createElement("span");
-          what.className = "what";
-          what.textContent = m.text;
-          li.appendChild(who); li.appendChild(what);
-          ul.appendChild(li);
-        });
-      }
-      setText("chat-history-meta", all.length > HISTORY_ROWS
-        ? "показаны последние " + HISTORY_ROWS + " из " + all.length : "");
-    }).catch(function () {});
+/* ------------------------------------------------------------- settings */
+
+async function loadSettings() {
+  await renderDevices();
+  try {
+    const state = await api("/api/state");
+    const brain = (state.agent || {}).brain || {};
+    $("brain-meta").textContent = brain.enabled
+      ? (brain.reachable ? "подключён" : "недоступен")
+      : "выключен";
+    $("brain-status").textContent = brain.enabled
+      ? (brain.reachable
+          ? `свой мозг отвечает: ${brain.model}${brain.model_present ? "" : " (модель пока не найдена на сервере)"}`
+          : `эндпоинт ${brain.endpoint} не отвечает${brain.detail ? ": " + brain.detail : ""}`)
+      : "Свой мозг не подключён: config/alontito_brain.json → own.enabled. Пока он не готов, агент отвечает навыками и собирает данные для обучения.";
+  } catch (e) { /* 401 handled globally */ }
+}
+
+async function renderDevices() {
+  const ul = $("devices-list");
+  ul.innerHTML = "";
+  if (!isMaster) {
+    ul.innerHTML = '<li class="empty">Управление устройствами — с ПК (мастер-токен).</li>';
+    $("btn-pair-code").disabled = true;
+    return;
   }
-  $("btn-chat-history").onclick = loadChatHistory;
-
-  // ---- knowledge -------------------------------------------------------------------
-  function loadKnowledge() {
-    api("/api/knowledge").then(function (k) {
-      setText("kb-dir", (k.ok ? "База знаний: " : "База знаний не найдена: ") + k.dir);
-      setText("kb-lessons-n", fmtInt(k.lessons_total || 0));
-      var lessons = $("kb-lessons");
-      lessons.innerHTML = "";
-      if (!(k.lessons || []).length) {
-        lessons.appendChild(emptyItem("Уроков в базе пока нет."));
-      } else {
-        (k.lessons || []).forEach(function (l) {
-          var li = document.createElement("li");
-          li.className = "row";
-          var who = document.createElement("span");
-          who.className = "who";
-          who.textContent = l.kind || "";
-          var what = document.createElement("span");
-          what.className = "what";
-          what.textContent = l.text || JSON.stringify(l);
-          li.appendChild(who); li.appendChild(what);
-          lessons.appendChild(li);
-        });
-      }
-      var facts = $("kb-facts");
-      facts.innerHTML = "";
-      if (!(k.facts || []).length) {
-        facts.appendChild(emptyItem("Фактов в базе пока нет."));
-      } else {
-        (k.facts || []).forEach(function (f) {
-          var li = document.createElement("li");
-          li.textContent = f.text || JSON.stringify(f);
-          facts.appendChild(li);
-        });
-      }
-    }).catch(function () {});
+  $("btn-pair-code").disabled = false;
+  try {
+    const data = await api("/api/devices");
+    const devices = data.devices || [];
+    if (!devices.length) { ul.innerHTML = '<li class="empty">Пока только этот ПК.</li>'; return; }
+    for (const d of devices) {
+      const li = document.createElement("li");
+      li.className = "row";
+      li.innerHTML = `<div class="what"><strong>${esc(d.name)}</strong>` +
+        `<span class="fresh">последний вход: ${dash(d.last_seen ? fmtTime(d.last_seen) : "—")}</span></div>` +
+        `<div class="auto-actions"><button class="btn btn-quiet" data-revoke="${esc(d.id)}">${d.enabled ? "Отозвать" : "Вернуть"}</button></div>`;
+      ul.appendChild(li);
+    }
+    ul.querySelectorAll("[data-revoke]").forEach((b) => b.addEventListener("click", async () => {
+      const d = (await api("/api/devices")).devices.find((x) => x.id === b.dataset.revoke);
+      await api("/api/devices/" + b.dataset.revoke + "/" + (d && d.enabled ? "revoke" : "enable"), { method: "POST" });
+      renderDevices();
+    }));
+  } catch (e) {
+    ul.innerHTML = '<li class="empty">Список недоступен: ' + esc(e.message) + "</li>";
   }
+}
 
-  // ---- journal (последние записи глаза на панели) -----------------------------
-  // Строка журнала:
-  // [2026-11-22 19:42:33] Str: 3.11M | Gems: 16.1M | Gift: READY | Modal: none | Machine: - | Events: none
-  var JOURNAL_RE = /^\[([^\]]+)\]\s*Str:\s*(.*?)\s*\|\s*Gems:\s*(.*?)\s*\|\s*Gift:\s*(.*?)\s*\|\s*Modal:\s*(.*?)\s*\|\s*Machine:\s*(.*?)\s*\|\s*Events:\s*(.*)$/i;
-  var JOURNAL_ROWS = 5;
+let pairTimer = null;
+$("btn-pair-code").addEventListener("click", async () => {
+  try {
+    const r = await api("/api/pairing-code", { method: "POST" });
+    $("pair-code").textContent = r.code;
+    let left = r.expires_in;
+    clearInterval(pairTimer);
+    pairTimer = setInterval(() => {
+      left -= 1;
+      $("pair-timer").textContent = left > 0 ? `действует ${left} с` : "истёк";
+      if (left <= 0) clearInterval(pairTimer);
+    }, 1000);
+  } catch (e) { flashBanner("Код может дать только ПК: " + e.message); }
+});
 
-  // «-», «?» и пустота в журнале — это «числа нет», а не ноль
-  function norm(v) {
-    var s = (v || "").trim();
-    return s === "" || s === "-" || s === "?" ? "—" : s;
+/* ---------------------------------------------------------------- boot */
+
+let booted = false;
+async function boot() {
+  if (booted) return;
+  booted = true;
+  try {
+    const probe = await api("/api/state");
+    renderState(probe);
+    isMaster = true;                     // /api/devices solves it in settings
+    connectSSE();
+    loadChatHistory();
+    openTab("chat");
+  } catch (e) {
+    if (e.message !== "401") flashBanner("Ошибка загрузки: " + e.message);
   }
+}
 
-  function shortTime(stamp) {
-    // "2026-11-22 19:42:33" -> "22.11 19:42"
-    var m = /^(\d{4})-(\d{2})-(\d{2})[ T](\d{2}:\d{2})/.exec(stamp || "");
-    return m ? m[3] + "." + m[2] + " " + m[4] : (stamp || "—");
+(function init() {
+  const urlToken = new URL(location.href).searchParams.get("token");
+  const stored = localStorage.getItem("pult_token");
+  if (urlToken) {
+    tryToken(urlToken, localStorage.getItem("pult_device") || "").catch((e) => {
+      localStorage.removeItem("pult_token");
+      showLogin(e.message);
+    });
+  } else if (stored) {
+    boot();
+  } else {
+    showLogin("");
   }
-
-  function jcell(tr, text, cls) {
-    var td = document.createElement("td");
-    td.className = cls;
-    td.textContent = text;
-    tr.appendChild(td);
-  }
-  function jspan(tr, text) {
-    var td = document.createElement("td");
-    td.colSpan = 6;
-    td.className = "span";
-    td.textContent = text;
-    tr.appendChild(td);
-  }
-
-  function loadJournal() {
-    api("/api/journal?n=" + (JOURNAL_ROWS + 11)).then(function (r) {
-      var rows = (r.lines || [])
-        .filter(function (l) { return l.source === "eye_journal.log"; })
-        .slice(-JOURNAL_ROWS);
-      var tb = $("journal-body");
-      tb.innerHTML = "";
-      if (!rows.length) {
-        var emptyRow = document.createElement("tr");
-        jspan(emptyRow, "Записей нет: Алонтито ещё ни разу не смотрел на игру.");
-        tb.appendChild(emptyRow);
-        return;
-      }
-      rows.forEach(function (l) {
-        var m = JOURNAL_RE.exec(l.line);
-        var tr = document.createElement("tr");
-        if (!m) {
-          jspan(tr, l.line);                       // «Roblox window NOT found» и т. п.
-        } else {
-          var strength = norm(m[2]), gems = norm(m[3]);
-          var gift = norm(m[4]);
-          if (gift === "READY") gift = "готов";
-          var modal = norm(m[5]);
-          if (modal === "none") modal = "нет";
-          else if (/^open:/i.test(modal)) modal = "открыт";
-          var events = norm(m[6]);
-          if (events.toLowerCase() === "none") events = "—";
-          jcell(tr, shortTime(m[1]), "time");
-          jcell(tr, strength, "num" + (strength === "—" ? " quiet" : ""));
-          jcell(tr, gems, "num" + (gems === "—" ? " quiet" : ""));
-          jcell(tr, gift, gift === "—" ? "quiet" : "");
-          jcell(tr, modal, modal === "нет" ? "quiet" : "");
-          jcell(tr, events, events === "—" ? "quiet" : "");
-        }
-        tb.appendChild(tr);
-      });
-    }).catch(function () {});
-  }
-
-  var journalTimer = 0;
-  function journalSoon() {
-    if (journalTimer) return;
-    journalTimer = setTimeout(function () { journalTimer = 0; loadJournal(); }, 5000);
-  }
-
-  // ---- boot -------------------------------------------------------------------
-  $("btn-theme").onclick = function () {
-    var next = THEME_MODES[(THEME_MODES.indexOf(themeMode()) + 1) % THEME_MODES.length];
-    try { localStorage.setItem(THEME_KEY, next); } catch (e) {}
-    applyTheme();
-  };
-  var mq = window.matchMedia("(prefers-color-scheme: dark)");
-  if (mq.addEventListener) mq.addEventListener("change", applyTheme);
-
-  applyTheme();
-  api("/api/status").then(renderStatus).catch(function () {});
-  loadJournal();
 })();
+
+/* ------------------------------------------------------------------ PWA */
+
+if ("serviceWorker" in navigator) {
+  navigator.serviceWorker.register("/sw.js").catch(() => {});
+}

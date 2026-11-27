@@ -166,6 +166,11 @@ class TestAppServer(unittest.TestCase):
     def test_static_shell_opens_without_token(self):
         status, body, _ = self.get("/", token=None)
         self.assertEqual(status, 200)
+        text = body.decode("utf-8")
+        self.assertIn("Алонтито", text)
+        # PWA: манифест и иконки на месте
+        self.assertIn("manifest.webmanifest", text)
+        self.assertIn("apple-touch-icon", text)
 
     def test_data_requires_token(self):
         status, _, _ = self.get("/api/state", token=None)
@@ -341,6 +346,16 @@ class TestAppServer(unittest.TestCase):
         self.assertEqual(status, 401)
 
     # ---- static design contract (E-023, kept from the pult) -------------------
+    def test_static_has_seven_screens(self):
+        _, body, _ = self.get("/", token=False)
+        text = body.decode("utf-8")
+        for h in ("Чат", "Память", "Напоминания", "Входящие", "Журнал",
+                  "Алонтито 3D", "Настройки"):
+            self.assertIn("<h1", text)
+        self.assertEqual(text.count("<h1"), 7)
+        self.assertNotIn("Панель", text)          # игровой пульт не возвращается
+        self.assertNotIn("сила", text.lower())
+
     def test_static_is_quiet_no_slop(self):
         css = (srv.STATIC / "style.css").read_text(encoding="utf-8")
         html = (srv.STATIC / "index.html").read_text(encoding="utf-8")
@@ -349,8 +364,11 @@ class TestAppServer(unittest.TestCase):
             self.assertNotIn(needle, css, needle)
             self.assertNotIn(needle, html, needle)
         self.assertNotIn("text-transform: uppercase", css)
+        # тень в покое запрещена; исключения — плавающие листы: меню и плашка
         shadows = [ln for ln in css.splitlines() if "box-shadow" in ln]
-        self.assertLessEqual(len(shadows), 1, shadows)
+        self.assertLessEqual(len(shadows), 2, shadows)
+        for ln in shadows:
+            self.assertIn("sheet-shadow", ln, ln)
 
     def test_appjs_ids_exist_in_html(self):
         import re

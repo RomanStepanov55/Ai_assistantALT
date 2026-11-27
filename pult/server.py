@@ -925,7 +925,7 @@ class PultHandler(BaseHTTPRequestHandler):
         if not path.is_file():
             return self._send_json({"error": "not found"}, 404)
         ext = path.suffix.lower()
-        cache = "max-age=3600" if name == "pet.js" else "no-store"
+        cache = "no-store" if name == "pet.js" else "no-store"
         self._send_bytes(path.read_bytes(), _MIME.get(ext, "application/octet-stream"),
                          cache=cache)
 

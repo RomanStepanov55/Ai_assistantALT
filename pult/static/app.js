@@ -209,6 +209,7 @@ function renderState(state) {
 /* ---------------------------------------------------------------- chat */
 
 let streaming = null;
+let pendingQuestion = null;            // свой вопрос: его отрисует POST, не SSE
 
 function chatBubble(role, text) {
   const div = document.createElement("div");
@@ -229,10 +230,12 @@ function streamChunk(text) {
 
 function finishStream(msg) {
   if (streaming) { streaming.remove(); streaming = null; }
-  if (msg && msg.question && msg.answer) {
-    chatBubble("user", msg.question);
-    chatBubble("assistant", msg.answer);
+  if (!msg || !msg.question || !msg.answer) return;
+  if (pendingQuestion !== null && msg.question === pendingQuestion) {
+    return;                            // POST спрашивающего отрисует ответ
   }
+  chatBubble("user", msg.question);
+  chatBubble("assistant", msg.answer);
   petSay("nod");
 }
 
@@ -256,14 +259,17 @@ async function sendChat() {
   if (!text) return;
   input.value = "";
   chatBubble("user", text);
+  pendingQuestion = text;
   petSay("think");
   try {
     const reply = await api("/api/chat", { method: "POST", json: { message: text, device: "web" } });
     if (streaming) { streaming.remove(); streaming = null; }
+    pendingQuestion = null;
     chatBubble("assistant", reply.answer);
     if (reply.source === "offline") flashBanner("Мозг не подключён — это честный ответ без модели");
     petSay("nod");
   } catch (e) {
+    pendingQuestion = null;
     if (e.message !== "401") chatBubble("assistant", "Ошибка: " + e.message);
   }
 }
@@ -526,12 +532,32 @@ async function loadJournal() {
 
 /* ------------------------------------------------------------------ pet */
 
-function petSay(action) {
+function petSend(msg) {
   const frame = $("pet-frame");
   if (frame && frame.contentWindow) {
-    try { frame.contentWindow.postMessage({ pet: JSON.stringify({ type: "play", clip: action }) }, "*"); } catch (e) {}
+    try { frame.contentWindow.postMessage({ pet: JSON.stringify(msg) }, "*"); } catch (e) {}
   }
 }
+
+function petSay(action) {
+  petSend({ cmd: "play", clip: action });
+}
+
+// Интро шлём ПОСЛЕ «ready» от сцены — как на рабочем столе: команды до
+// инициализации GLTF молча теряются.
+function petIntro() {
+  petSend({ cmd: "fps", value: 30 });
+  petSend({ cmd: "play", clip: "idle", loop: true });
+  petSend({ cmd: "face", deg: 0 });
+  petSend({ cmd: "dissolve", dir: "in" });
+}
+window.addEventListener("message", (e) => {
+  const d = e.data;
+  if (!d || !d.pet) return;
+  try {
+    if (JSON.parse(d.pet).ev === "ready") setTimeout(petIntro, 150);
+  } catch (err) {}
+});
 document.querySelectorAll("[data-pet-clip]").forEach((b) =>
   b.addEventListener("click", () => petSay(b.dataset.petClip)));
 

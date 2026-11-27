@@ -30,12 +30,14 @@ class FakeGateway:
 
 
 def make_agent(tmp: Path, gateway=None) -> Agent:
+    from brain.experience_memory import ExperienceMemory
     return Agent(
         memory=Memory(tmp / "memory.json"),
         gateway=gateway,
         automations=Automations(tmp / "automations.json"),
         learning=LearningEngine(db_path=str(tmp / "learn.sqlite3"),
                                 dataset_path=str(tmp / "curated.jsonl")),
+        experience=ExperienceMemory(str(tmp / "experience.sqlite3")),
     )
 
 

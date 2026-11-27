@@ -19,7 +19,9 @@ import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 const Q = new URLSearchParams(location.search);
 const DEBUG = Q.has('debug');
 if (Q.get('bg')) document.body.style.background = '#' + Q.get('bg');
-const CHAR_URL = Q.get('char') || '/asset/character.glb';
+// база страницы: '/' на Qt-сервере, '/pet/' в приложении — все ресурсы рядом
+const BASE = location.pathname.endsWith('/') ? location.pathname : location.pathname + '/';
+const CHAR_URL = Q.get('char') || (BASE + 'asset/character.glb');
 const PORTAL_URL = Q.get('portal') || '';
 let FPS = Math.max(10, Math.min(60, +(Q.get('fps') || 45)));
 const MAX_DT = Math.max(0.05, Math.min(1, +(Q.get('maxdt') || 0.1)));   // потолок шага времени (тесты на медленном софтверном GL поднимают его)
@@ -576,7 +578,7 @@ async function init() {
   fit();
   const loader = new GLTFLoader();
   const [animRes, chGltf] = await Promise.all([
-    fetch('/animations.json').then((r) => r.json()),
+    fetch(BASE + 'animations.json').then((r) => r.json()),
     loader.loadAsync(CHAR_URL),
   ]);
   ANIM = animRes; DRIVEN = ANIM.driven;

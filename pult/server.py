@@ -407,6 +407,7 @@ def transcribe_wav(data: bytes) -> dict:
 def background_tasks():
     from alontito.automations import Automations
     autos = Automations()
+    tick_counter = 0
     while True:
         try:
             now = time.time()
@@ -416,6 +417,18 @@ def background_tasks():
                                 "when": auto.when_text(),
                                 "automation_id": auto.id})
                 autos.mark_fired(auto.id, now)
+            # Self-development: one autonomy step a minute. The engine paces
+            # itself (governor + interval), so this stays cheap; events land
+            # on every device as notifications.
+            tick_counter += 1
+            if tick_counter % 12 == 0:
+                agent = AGENT.bind()
+                if agent is not None:
+                    for ev in agent.autonomy_tick():
+                        BROKER.publish({
+                            "type": "notification", "kind": "autonomy",
+                            "text": ev.get("detail", ""),
+                            "when": time.strftime("%H:%M")})
             BROKER.publish({"type": "status", "status": state_snapshot()})
             for ev in BROKER.tail_logs():
                 BROKER.publish(ev)

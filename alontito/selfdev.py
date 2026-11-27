@@ -5,6 +5,11 @@ One experiment at a time. A change is accepted only when a measured run is
 better than the baseline; a worse run rejects it and rolls parameters back.
 Unmeasured runs do not become lessons.
 
+Since the 2026-11-27 pivot the ledger tunes the AGENT, not a game: thinking
+depth (review rounds), autonomy cadence (interval_min) and other agent-level
+parameters. brain/autonomy.py drives proposals and verdicts from real
+metrics; this module only keeps the single-experiment discipline.
+
 Stored inside memory.json under the key ``selfdev`` so a restart does not
 forget which change is still open.
 """
@@ -19,10 +24,9 @@ MAX_LESSONS = 30
 MAX_CLOSED = 40
 
 DEFAULT_PARAMS: Dict[str, Any] = {
-    "action": "TRAIN_DUMBBELLS",
-    "sets": 3,
-    "reps": 20,
-    "delay": 0.08,
+    "action": "reflection_cycle",
+    "interval_min": 45,
+    "review_rounds": 2,
 }
 
 

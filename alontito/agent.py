@@ -53,6 +53,9 @@ class Agent:
         self.learning = learning            # LearningEngine, lazy below
         self.experience = experience        # ExperienceMemory, lazy below
         self._gateway = gateway
+        self._cog = None                    # CognitiveCore, lazy below
+        self._autonomy_engine = None        # AutonomyEngine, lazy below
+        self._synthesizer = None            # SkillSynthesizer, lazy below
         self._brain_error = ""
         try:
             self._gateway = gateway or ModelGateway()
@@ -80,6 +83,68 @@ class Agent:
             self.experience = ExperienceMemory()
         return self.experience
 
+    # ------------------------------------------------------------ autonomy
+
+    def _autonomy_params(self) -> Dict[str, Any]:
+        """Agent-level parameters the self-development ledger tunes."""
+        try:
+            from .selfdev import get_active_params
+            return get_active_params(self.memory.data)
+        except Exception:
+            return {}
+
+    def _cognition(self):
+        """The reasoning pipeline; rebuilt when autonomy tunes review rounds."""
+        rounds = int(self._autonomy_params().get("review_rounds", 2))
+        if self._cog is None or self._cog.max_review_rounds != rounds:
+            from brain.cognition import CognitiveCore
+            self._cog = CognitiveCore(chat_fn=self._brain_chat,
+                                      memory=self.memory,
+                                      experience=self._experience(),
+                                      max_review_rounds=rounds)
+        return self._cog
+
+    def _brain_chat(self, messages, on_delta=None) -> str:
+        if self._gateway is None:
+            raise ModelUnavailable("свой мозг не подключён")
+        return self._gateway.chat(messages, on_delta=on_delta)["text"]
+
+    def _autonomy(self):
+        if self._autonomy_engine is None:
+            from brain.autonomy import AutonomyEngine
+            self._autonomy_engine = AutonomyEngine(
+                memory=self.memory, automations=self.automations,
+                learning=self._learning(), experience=self._experience())
+        return self._autonomy_engine
+
+    def autonomy_tick(self) -> List[Dict[str, Any]]:
+        """One self-development step. Returns events for the UI; never raises."""
+        try:
+            return self._autonomy().tick()
+        except Exception:                                   # autonomy must not break chat
+            return []
+
+    def synthesize_skill(self, name: str, task: str) -> Dict[str, Any]:
+        """The agent writes its own tool: own brain drafts, AST gate checks,
+        smoke test runs it, registry records provenance. Full self-development,
+        bounded by construction."""
+        from brain.skill_synthesis import SkillSynthesizer
+        if self._gateway is None:
+            return {"ok": False,
+                    "detail": "свой мозг не подключён — синтез навыков требует модель"}
+        if self._synthesizer is None:
+            self._synthesizer = SkillSynthesizer()
+        ok, detail = self._synthesizer.synthesize(name, task,
+                                                  chat_fn=self._brain_chat)
+        self.memory.journal("skill_synthesis", name=name, ok=ok, detail=detail)
+        return {"ok": ok, "detail": detail}
+
+    def synthesized_tools(self) -> List[Dict[str, Any]]:
+        """The self-made tools registry (empty until the agent synthesizes)."""
+        if self._synthesizer is None:
+            return []
+        return self._synthesizer.list()
+
     # ------------------------------------------------------------ status
 
     def status(self) -> Dict[str, Any]:
@@ -103,6 +168,7 @@ class Agent:
                                 if a.enabled]),
             "brain": own,
             "training": self._learning().stats(),
+            "autonomy": self._autonomy().status(),
         }
 
     # ------------------------------------------------------------ recall
@@ -202,6 +268,33 @@ class Agent:
                          + brain_line),
                 "source": "skill", "skill": "status"}
 
+    def _skill_autonomy(self) -> Dict[str, Any]:
+        """What the agent is developing about itself right now - real data."""
+        st = self._autonomy().status()
+        metrics = st.get("metrics") or {}
+        active = st.get("active")
+        lines = []
+        if active:
+            lines.append(f"эксперимент: {active.get('change')} "
+                         f"(попыток {active.get('tries')})")
+        else:
+            lines.append("активного эксперимента нет — жду измерений")
+        if metrics.get("weakest"):
+            lines.append(f"слабое место по метрикам: {metrics['weakest']}")
+        for key, label in (("memory_health", "память"), ("helpfulness", "полезность"),
+                           ("autonomy", "навыки"), ("punctuality", "пунктуальность")):
+            value = metrics.get(key)
+            if value is not None:
+                lines.append(f"{label}: {value}")
+        closed, accepted = st.get("closed") or 0, st.get("accepted") or 0
+        lessons = st.get("lessons") or []
+        lines.append(f"экспериментов закрыто {closed}, принято {accepted}")
+        if lessons:
+            lines.append("уроки: " + "; ".join(lessons[-3:]))
+        return {"text": "саморазвитие (всё измерено, ничего не выдумано):\n" +
+                        "\n".join(f"- {l}" for l in lines),
+                "source": "skill", "skill": "autonomy"}
+
     def _try_skills(self, text: str) -> Optional[Dict[str, Any]]:
         low = (text or "").strip().lower()
         if low.startswith("запомни"):
@@ -213,6 +306,10 @@ class Agent:
         if any(low.startswith(p) for p in
                ("что мы решали", "что мы решили", "вспомни", "что известно про")):
             return self._skill_recall(text)
+        if any(low.startswith(p) for p in
+               ("что развиваешь", "что ты развиваешь", "саморазвитие",
+                "как ты развиваешься")):
+            return self._skill_autonomy()
         if low.startswith(("открой ссылку", "открой сайт", "открой папку",
                            "открой файл", "покажи папку", "прочитай файл")):
             return self._skill_pc(text)
@@ -264,15 +361,22 @@ class Agent:
                                 skill=skill.get("skill"), text=text[:200])
             return skill
 
-        messages = self._build_messages(text, history or [])
         if self._gateway is None:
             reply = {"text": offline_reply(text, self.status()),
                      "source": "offline"}
         else:
+            # The cognitive pipeline owns the brain path: plan -> draft ->
+            # critique rounds -> grounding. It falls back to an honest
+            # offline reply when the brain is off/unreachable mid-turn.
             try:
-                result = self._gateway.chat(messages, on_delta=on_delta)
-                reply = {"text": result["text"], "source": "own",
-                         "model": result.get("model")}
+                cog = self._cognition().answer(text, history=history,
+                                               on_delta=on_delta)
+                try:
+                    model_name = self._gateway.cfg.own_model
+                except AttributeError:
+                    model_name = getattr(self._gateway, "model", "")
+                reply = {"text": cog.answer, "source": "own",
+                         "model": model_name, "cognition": cog.meta()}
             except ModelUnavailable as exc:
                 reply = {"text": offline_reply(text, self.status()),
                          "source": "offline", "brain_error": str(exc)}
@@ -282,6 +386,7 @@ class Agent:
 
     def _build_messages(self, text: str,
                         history: List[Dict[str, str]]) -> List[Dict[str, str]]:
+        """Legacy single-shot prompt builder, kept for MCP/tools diagnostics."""
         messages = [{"role": "system",
                      "content": SYSTEM_PROMPT + "\n\n[Память по теме]:\n" +
                                 self._memory_block(text)}]

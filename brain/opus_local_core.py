@@ -4,12 +4,17 @@ import time
 import queue
 import threading
 import importlib.util
+import urllib.error
+import urllib.request
 from pathlib import Path
 from dataclasses import dataclass
 from typing import Any, Callable, Dict, List, Optional, Tuple
-import requests
 from brain.experience_memory import ExperienceMemory
 from brain.learning_engine import LearningEngine
+
+# The canonical AST gate lives in brain/skill_synthesis.py (stdlib-only);
+# re-exported here so the Omni lab and its tests keep one validator.
+from brain.skill_synthesis import SafeToolValidator, ToolSecurityViolation
 
 
 class OmniEventBus:
@@ -50,45 +55,6 @@ def emit_pet_command(action: str, prop: Optional[str] = None, emotion: Optional[
     if emotion:
         packet["emotion"] = emotion
     print(f"@@PET@@ {json.dumps(packet, ensure_ascii=False)}", flush=True)
-
-
-class ToolSecurityViolation(Exception):
-    pass
-
-
-class SafeToolValidator(ast.NodeVisitor):
-    FORBIDDEN_MODULES = {
-        "ctypes", "pymem", "subprocess", "socket", "win32process",
-        "win32security", "shutil", "pickle", "marshal", "pty", "telnetlib"
-    }
-    FORBIDDEN_CALLS = {
-        "eval", "exec", "compile", "__import__", "open", "system", "popen",
-        "ReadProcessMemory", "WriteProcessMemory", "VirtualAllocEx"
-    }
-
-    def visit_Import(self, node: ast.Import) -> None:
-        for alias in node.names:
-            root_mod = alias.name.split(".")[0]
-            if root_mod in self.FORBIDDEN_MODULES:
-                raise ToolSecurityViolation(f"Запрещённый импорт модуля: {alias.name}")
-        self.generic_visit(node)
-
-    def visit_ImportFrom(self, node: ast.ImportFrom) -> None:
-        if node.module:
-            root_mod = node.module.split(".")[0]
-            if root_mod in self.FORBIDDEN_MODULES:
-                raise ToolSecurityViolation(f"Запрещённый импорт из модуля: {node.module}")
-        self.generic_visit(node)
-
-    def visit_Call(self, node: ast.Call) -> None:
-        func_name = ""
-        if isinstance(node.func, ast.Name):
-            func_name = node.func.id
-        elif isinstance(node.func, ast.Attribute):
-            func_name = node.func.attr
-        if func_name in self.FORBIDDEN_CALLS:
-            raise ToolSecurityViolation(f"Запрещённый вызов функции: {func_name}")
-        self.generic_visit(node)
 
 
 @dataclass
@@ -136,9 +102,11 @@ class OpusLocalCore:
     SYSTEM_PROMPT = (
         "Ты — Алонтито (Alontito), автономный саморазвивающийся AI-агент и 3D-ассистент рабочего стола. "
         "Всегда рассуждай строго внутри тегов <thinking>...</thinking> перед финальным ответом. "
-        "СТРОГИЕ ПРАВИЛА БЕЗОПАСНОСТИ: запрещены любые DLL/Lua-инъекции, чтение памяти процессов, "
-        "эксплойты, трейды в играх и действия с реальными деньгами/Robux. "
-        "Разрешена только честная визуальная навигация и безопасная эмуляция ввода."
+        "СТРОГИЕ ПРАВИЛА БЕЗОПАСНОСТИ (пивот 2026-11-27): никаких игр и автоматизации игр; "
+        "никаких покупок, трейдов и действий с реальными деньгами; запрещены любые "
+        "DLL-инъекции, чтение памяти процессов, эксплойты. Действия на компьютере — "
+        "только через явное подтверждение пользователя. Разрешено: рассуждения, "
+        "создание безопасных инструментов, работа с памятью, знаниями и файлами агента."
     )
 
     def __init__(self, config: Optional[OpusConfig] = None, event_bus: Optional[OmniEventBus] = None):
@@ -158,11 +126,12 @@ class OpusLocalCore:
 
     def _resolve_deep_model(self) -> str:
         try:
-            resp = requests.get(f"{self.cfg.ollama_url}/api/tags", timeout=2.5)
-            if resp.status_code == 200:
-                names = [m["name"] for m in resp.json().get("models", [])]
-                if any(self.cfg.deep_model in n for n in names):
-                    return self.cfg.deep_model
+            with urllib.request.urlopen(self.cfg.ollama_url + "/api/tags",
+                                        timeout=2.5) as resp:
+                payload = json.loads(resp.read().decode("utf-8", "replace"))
+            names = [m.get("name", "") for m in payload.get("models", [])]
+            if any(self.cfg.deep_model in n for n in names):
+                return self.cfg.deep_model
         except Exception:
             pass
         return self.cfg.fallback_deep_model
@@ -210,16 +179,16 @@ class OpusLocalCore:
 
         full_text = ""
         try:
-            with requests.post(
-                f"{self.cfg.ollama_url}/api/chat",
-                json=payload,
-                stream=stream,
-                timeout=self.cfg.request_timeout
-            ) as resp:
-                resp.raise_for_status()
+            body = json.dumps(payload, ensure_ascii=False).encode("utf-8")
+            req = urllib.request.Request(
+                self.cfg.ollama_url + "/api/chat", data=body,
+                headers={"Content-Type": "application/json"})
+            with urllib.request.urlopen(req, timeout=self.cfg.request_timeout) as resp:
                 if not stream:
-                    return resp.json().get("message", {}).get("content", "")
-                for line in resp.iter_lines(decode_unicode=True):
+                    data = json.loads(resp.read().decode("utf-8", "replace"))
+                    return data.get("message", {}).get("content", "")
+                for raw_line in resp:
+                    line = raw_line.decode("utf-8", "replace").strip()
                     if not line:
                         continue
                     chunk = json.loads(line)

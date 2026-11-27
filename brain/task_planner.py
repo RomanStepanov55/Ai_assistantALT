@@ -2,16 +2,20 @@
 """
 TaskPlanner v5 — универсальный планировщик задач для Alontito.
 
-Один и тот же мозг (NeuroLab + SkillAutonomy) работает с любой задачей:
-игровой тренинг, файлы, обучение, рутина. Планировщик:
+Один и тот же мозг (NeuroLab + SkillAutonomy) работает с любой задачей
+агента: саморазвитие, память, навыки, автоматизации, знания, рутина.
+Планировщик:
   - разбивает цель на шаги;
   - переиспользует уроки из LessonRegistry (параметры прошлых успешных
     экспериментов переносятся на похожие задачи — это и есть "кругозор");
   - каждый шаг прогоняется через ту же петлю: выбрать -> выполнить -> замерить -> записать.
 
+С пивота 2026-11-27 игровых доменов нет: агент не играет. Словарь доменов —
+только агентская работа.
+
 Пример:
     tp = TaskPlanner()
-    task = tp.plan("качать силу быстрее", lessons=lab.experiments.lessons)
+    task = tp.plan("навести порядок в памяти")
     while not task.done:
         step = tp.next_step(task)
         ... выполнить step ...
@@ -49,13 +53,17 @@ class Task:
 
 class TaskPlanner:
     KEYWORDS = {
-        ("сил", "strength", "кач"): ["observe", "train", "measure", "reflect"],
-        ("гем", "gems", "монет"):   ["observe", "farm", "measure", "reflect"],
-        ("квест", "quest"):          ["observe", "claim_quests", "measure"],
-        ("питом", "pet"):            ["observe", "pets", "measure", "reflect"],
-        ("реборн", "rebirth"):       ["observe", "verify", "rebirth", "measure"],
-        ("файл", "file", "папк"):    ["scan", "plan_changes", "apply", "verify"],
-        ("учеб", "learn", "тренир"): ["warmup", "train", "test", "reflect"],
+        # агентская работа (пивот 2026-11-27)
+        ("памят", "факт", "знан"):      ["collect", "consolidate", "verify", "prune"],
+        ("напомин", "автомат", "рутин"): ["observe", "propose", "measure", "adopt"],
+        ("навык", "skill", "инструмент"): ["measure", "synthesize", "test", "register"],
+        ("ответ", " чат", "качеств", "одобрен"): ["collect", "review", "revise", "measure"],
+        ("саморазвит", "эксперимент", "улучш"): ["measure", "propose", "test", "adopt"],
+        ("учеб", "learn", "обучен", "датасет"): ["warmup", "train", "test", "reflect"],
+        ("файл", "file", "папк", "документ"): ["scan", "plan_changes", "apply", "verify"],
+        # общая дисциплина «тренировка» (саморазвитие как упражнение)
+        ("сил", "strength", "кач"):     ["observe", "train", "measure", "reflect"],
+        ("тренир", "практ"):            ["warmup", "train", "test", "reflect"],
     }
     DEFAULT_STEPS = ["observe", "act", "measure", "reflect"]
 

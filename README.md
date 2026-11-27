@@ -10,7 +10,7 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-purple.svg)](LICENSE)
 [![Python: 3.10+](https://img.shields.io/badge/python-3.10%20%7C%203.11%20%7C%203.12%20%7C%203.13-blue.svg)](https://www.python.org/)
 [![GUI: PyQt6 WebEngine](https://img.shields.io/badge/3D-PyQt6%20%2F%20Three.js-green.svg)](https://threejs.org/)
-[![Tests: Passing](https://img.shields.io/badge/tests-240%20passed-brightgreen.svg)](tests/)
+[![Tests: Passing](https://img.shields.io/badge/tests-292%20passed-brightgreen.svg)](tests/)
 
 ---
 
@@ -50,6 +50,32 @@ DirectInput-контроллер, ридер HUD, адаптеры игры, и�
 гейт промоушена (`compare_and_promote`, прирост ≥ 0.02) → ваш мозг в роли `own`.
 Учитель: `python tools/teacher_generate.py --topics "…" --per-topic 2`.
 
+### 🧠 Когнитивный конвейер v2 и автономия (с 28.11.2026)
+
+Скелет рассуждений уровня передовых агентов — вокруг вашего мозга, а не
+вместо него (`brain/cognition.py`):
+
+- **Роутер усилий** — `low→max`, детерминированный; глубина ответа растёт
+  с сложностью запроса, «малый разговор» не ждёт лишних вызовов.
+- **План → черновик → независимая критика → ревизия** — до 3 раундов;
+  некорректная критика никогда не затирает рабочий черновик.
+- **Проверка опоры** — каждое число в ответе ищет источник (вопрос, память,
+  урок); личные факты с неподтверждёнными числами получают пометку
+  «не подтверждено», а не молчаливый обман.
+- **Автономия** (`brain/autonomy.py`): агент сам держит рутины, измеряет
+  себя (память/полезность/навыки/пунктуальность), предлагает ровно одно
+  изменение за раз и выносит вердикт только по замерам (±10% полоса шума,
+  «хуже» — откат). «Не смог измерить ≠ получилось».
+- **Консолидация памяти** (`brain/consolidation.py`): дедуп близнецов
+  (цифры обязаны совпадать), противоречия помечаются и превращаются в
+  открытые вопросы, устаревшее перестаёт притворяться актуальным.
+- **Синтез навыков** (`brain/skill_synthesis.py`): агент пишет себе чистые
+  инструменты — белый список модулей, автотест с таймаутом, реестр с
+  происхождением. `/autonomy synth <имя> <задача>`; откат есть.
+- **Планировщик задач** (`brain/task_planner.py`): цель → шаги
+  (collect/consolidate/verify/… ) с переиспользованием параметров прошлых
+  успешных экспериментов.
+
 ## 🛡 Границы (зашиты структурно)
 
 - ❌ Игрового кода не существует: ни запуска, ни ввода, ни чтения HUD —
@@ -88,8 +114,9 @@ Alontito_MCP.bat        → MCP-сервер (stdio) для внешних ИИ
 ## ⌨ Терминал
 
 Свободный текст — разговор с агентом (навыки или мозг). Команды:
-`/memory [слово]`, `/skills`, `/journal [n]`, `/learn`, `/safety`,
-`/mcp`, `/3d [on|off|play …|scale …]`, `/omni`, `/info`, `/github`,
+`/memory [слово]`, `/skills`, `/journal [n]`, `/learn`, `/autonomy`,
+`/autonomy synth <имя> <задача>`, `/safety`, `/mcp`,
+`/3d [on|off|play …|scale …]`, `/omni`, `/info`, `/github`,
 `/support`, `/theme`, `/quit`.
 
 ## 🖥 Приложение (веб)
@@ -112,10 +139,10 @@ Alontito_MCP.bat        → MCP-сервер (stdio) для внешних ИИ
 ## 🧪 Тестирование
 
 ```bash
-python -m unittest tests.test_no_roblox tests.test_alontito tests.test_model tests.test_agent tests.test_automations_inbox tests.test_pult tests.test_pc_actions tests.test_pet_logic tests.test_teacher_generate tests.test_selfdev tests.test_neuro_lab tests.test_task_planner tests.test_resource_governor tests.test_voice_chat tests.test_experience_memory tests.test_learning_engine tests.test_omni_link tests.test_omni_opus5
+python -m unittest tests.test_no_roblox tests.test_alontito tests.test_model tests.test_agent tests.test_automations_inbox tests.test_pult tests.test_pc_actions tests.test_pet_logic tests.test_teacher_generate tests.test_selfdev tests.test_neuro_lab tests.test_task_planner tests.test_resource_governor tests.test_voice_chat tests.test_experience_memory tests.test_learning_engine tests.test_omni_link tests.test_omni_opus5 tests.test_cognition tests.test_autonomy tests.test_consolidation tests.test_skill_synthesis
 ```
 
-Полный набор — 240 тестов, зелёный; список совпадает с командой выше (не `unittest discover`:
+Полный набор — 292 теста, зелёный; список совпадает с командой выше (не `unittest discover`:
 есть тесты, меняющие рабочие файлы и требующие изоляции).
 
 ## 📄 Лицензия

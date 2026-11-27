@@ -34,6 +34,7 @@ HOME_COMMANDS = [
     ("/skills", "навыки"),
     ("/journal", "журнал"),
     ("/learn", "что известно"),
+    ("/autonomy", "саморазвитие"),
     ("/safety", "запреты"),
     ("/mcp", "MCP-мост для ИИ"),
     ("/3d", "3D-ассистент"),
@@ -100,6 +101,7 @@ class App:
         handler = {
             "/help": self.cmd_help,
             "/learn": self.cmd_learn,
+            "/autonomy": self.cmd_autonomy,
             "/memory": self.cmd_memory,
             "/skills": self.cmd_skills,
             "/journal": self.cmd_journal,
@@ -153,6 +155,7 @@ class App:
                 ("/skills", "успех и прирост/мин"),
                 ("/journal [n]", "события журнала"),
                 ("/learn", "что известно из замеров"),
+                ("/autonomy", "саморазвитие: метрики и эксперимент"),
                 ("/safety", "границы действий"),
                 ("/mcp", "MCP-мост для ИИ"),
                 ("/3d", "3D-ассистент"),
@@ -199,7 +202,7 @@ class App:
         proposal = self.brain.propose()
         if proposal is None:
             info("своих улучшений не предлагаю: Алонтито не играет, ему нечего "
-                 "менять в игре. Замеры идут из /watch — твоей игры.")
+                 "менять в игре. Саморазвитие агента смотрите в /autonomy.")
         else:
             say(box("ОДНО УЛУЧШЕНИЕ ЗА ИТЕРАЦИЮ", [
                 f"проблема:  {proposal['problem']}",
@@ -239,6 +242,67 @@ class App:
             blank()
 
     # ----------------------------------------------------------------- memory
+
+    def cmd_autonomy(self, args):
+        """Саморазвитие: метрики, активный эксперимент, уроки.
+        /autonomy synth <имя> <задача> — агент пишет себе навык сам."""
+        if args and args[0] == "synth":
+            if len(args) < 3:
+                err("нужно: /autonomy synth <имя> <задача одним текстом>")
+                return
+            name, task = args[1], " ".join(args[2:])
+            step(f"синтез навыка «{name}»: мозг пишет код, страж AST проверяет, "
+                 f"автотест запускает…")
+            result = self.agent.synthesize_skill(name, task)
+            if result["ok"]:
+                ok(result["detail"])
+            else:
+                err(result["detail"])
+            blank()
+            return
+        blank()
+        st = self.agent._autonomy().status()
+        metrics = st.get("metrics") or {}
+        active = st.get("active")
+        rows = []
+        for key, label in (("memory_health", "память"),
+                           ("helpfulness", "полезность ответов"),
+                           ("autonomy", "успех навыков"),
+                           ("punctuality", "пунктуальность напоминаний")):
+            value = metrics.get(key)
+            rows.append([label, "—" if value is None else f"{value * 100:.0f}%"])
+        facts = metrics.get("facts")
+        if facts is not None:
+            rows.append(["фактов в памяти", str(facts)])
+        contradictions = metrics.get("contradictions")
+        if contradictions is not None:
+            rows.append(["противоречий", str(contradictions)])
+        body = [
+            table(["метрика", "значение"], rows, width=term_width() - 8),
+            "",
+        ]
+        if active:
+            body += [
+                f"эксперимент: {active.get('change')}",
+                f"метрика: {active.get('metric')} · попыток: {active.get('tries')}",
+                f"основание: {active.get('evidence')}",
+            ]
+        else:
+            body.append("активного эксперимента нет — агент ждёт измерений")
+        closed, accepted = st.get("closed") or 0, st.get("accepted") or 0
+        body.append(f"закрыто экспериментов: {closed} (принято {accepted}, "
+                    f"отклонено {st.get('rejected') or 0})")
+        lessons = st.get("lessons") or []
+        if lessons:
+            body.append("")
+            body.append("уроки:")
+            body += [f"· {l}" for l in lessons[-5:]]
+        params = self.agent._autonomy_params()
+        body.append(f"параметры: review_rounds={params.get('review_rounds')}, "
+                    f"interval_min={params.get('interval_min')}")
+        say(box("САМОРАЗВИТИЕ (один эксперимент за раз, вердикт только по замеру)",
+                body, width=term_width(), color="cyan"))
+        blank()
 
     def cmd_memory(self, args):
         needle = " ".join(args)

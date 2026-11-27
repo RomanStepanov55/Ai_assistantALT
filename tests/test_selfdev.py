@@ -79,19 +79,21 @@ class TestSelfDev(unittest.TestCase):
 
     def test_verdict_rejected_with_rollback(self):
         # Configure custom parameter
-        selfdev.set_active_params(self.data, {"delay": 0.02})
-        self.assertEqual(selfdev.get_active_params(self.data)["delay"], 0.02)
+        selfdev.set_active_params(self.data, {"review_rounds": 3})
+        self.assertEqual(selfdev.get_active_params(self.data)["review_rounds"], 3)
 
-        p = {"change": "aggressive 0.02s delay"}
+        p = {"change": "deeper review: 3 rounds"}
         selfdev.register_proposal(self.data, p)
-        res = selfdev.note_verdict(self.data, "хуже", "frame drops", 1000.0)
+        res = selfdev.note_verdict(self.data, "хуже", "slower answers", 1000.0)
         self.assertEqual(res["status"], "rejected")
         st = selfdev.status(self.data)
         self.assertIsNone(st["active"])
         self.assertEqual(st["rejected"], 1)
-        self.assertTrue(any("откатить: aggressive 0.02s delay" in l for l in st["lessons"]))
-        # Parameter should be rolled back to default
-        self.assertEqual(selfdev.get_active_params(self.data)["delay"], 0.08)
+        self.assertTrue(any("откатить: deeper review: 3 rounds" in l for l in st["lessons"]))
+        # Parameter should be rolled back to default (agent-level since the
+        # 2026-11-27 pivot: the ledger tunes the agent, not a game)
+        self.assertEqual(selfdev.get_active_params(self.data)["review_rounds"],
+                         selfdev.DEFAULT_PARAMS["review_rounds"])
 
     def test_verdict_inconclusive_after_two_tries(self):
         p = {"change": "alternate keys"}

@@ -16,6 +16,7 @@ import sys
 from pathlib import Path
 
 from . import omni_link
+from .agent import Agent
 from .brain import Brain, interpret
 from .memory import JOURNAL_FILE, STATUSES, Memory
 from .skills import guard_report
@@ -49,6 +50,7 @@ class App:
     def __init__(self):
         self.memory = Memory()
         self.brain = Brain(self.memory)
+        self.agent = Agent(memory=self.memory)
         self.mcp = AlontitoMCPServer(memory=self.memory)
         self.running = True
         self._mcp_enabled = bool(self.memory.data.get("mcp_enabled", False))
@@ -71,12 +73,14 @@ class App:
                 continue
             if pet3d.handle_command(line):
                 continue
-            command = interpret(line)
-            if command is None:
-                warn("не понял формулировку — /help. Свободный текст понимаю "
-                     "так: «память», «навыки», «что известно», «как дела».")
-                continue
-            self.dispatch(command, line)
+            if line.startswith("/"):
+                command = interpret(line)
+                if command is None:
+                    err(f"неизвестная команда: {line.split()[0]}. /help")
+                    continue
+                self.dispatch(command, line)
+            else:
+                self.cmd_say(line)
 
     def refresh_home(self):
         clear_screen()
@@ -127,6 +131,18 @@ class App:
     # ------------------------------------------------------------------
     # commands
     # ------------------------------------------------------------------
+
+    def cmd_say(self, text: str):
+        """Свободный текст — разговор с агентом (навыки или свой мозг)."""
+        blank()
+        reply = self.agent.answer(text, device="terminal")
+        color = {"skill": "green", "own": "violet", "offline": "yellow"}.get(
+            reply.get("source"), "muted")
+        say(box("АЛОНТИТО", [reply.get("text") or ""], width=term_width(),
+                color=color))
+        if reply.get("source") == "offline":
+            step("свой мозг не подключён: config/alontito_brain.json")
+        blank()
 
     def cmd_help(self, args):
         blank()

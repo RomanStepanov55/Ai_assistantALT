@@ -122,6 +122,25 @@ class AlontitoMCPServer:
                     "required": ["fact"],
                 },
             },
+            {
+                "name": "create_reminder",
+                "description": (
+                    "Creates a reminder for the user. Russian phrases like "
+                    "«через 20 минут …», «завтра в 9:00 …», «каждый день в "
+                    "9:00 …», «по будням в 8:30 …», «каждый понедельник в "
+                    "18:00 …». It fires on every paired device."
+                ),
+                "inputSchema": {
+                    "type": "object",
+                    "properties": {
+                        "phrase": {
+                            "type": "string",
+                            "description": "Full reminder phrase with the time and the text",
+                        },
+                    },
+                    "required": ["phrase"],
+                },
+            },
         ]
 
     def list_resources(self) -> List[Dict[str, Any]]:
@@ -210,6 +229,30 @@ class AlontitoMCPServer:
                     {"type": "text",
                      "text": f"Fact recorded (status: {stored['status']}, "
                              f"source: {source})."}
+                ]
+            }
+
+        elif tool_name == "create_reminder":
+            from .automations import parse as parse_reminder
+            import time as _time
+            phrase = (arguments.get("phrase") or "").strip()
+            if not phrase:
+                return {"isError": True,
+                        "content": [{"type": "text", "text": "Empty phrase."}]}
+            auto = parse_reminder(phrase, _time.time())
+            if auto is None:
+                return {"isError": True,
+                        "content": [{"type": "text",
+                                     "text": "Не понял время в фразе. "
+                                             "Примеры: «через 20 минут …», "
+                                             "«каждый день в 9:00 …»."}]}
+            from .automations import Automations
+            stored = Automations().add(auto)
+            return {
+                "content": [
+                    {"type": "text",
+                     "text": f"Напоминание поставлено: {stored.when_text()} — "
+                             f"{stored.text}"}
                 ]
             }
 

@@ -26,7 +26,9 @@ SCAN_EXTRA_FILES = (
 EXCLUDE_PARTS = ("pet3d" + "/" + "vendor",)  # vendored three.js is not our code
 
 # Tokens that only make sense if a game layer exists again: launching,
-# input injection, HUD reading or the old kill switch.
+# input injection, HUD reading or the old kill switch. (os.startfile is NOT
+# listed: the whitelisted, confirm-gated PC actions may open a local file —
+# game deep links are what it used to open, and there is no game left.)
 FORBIDDEN_TOKENS = (
     "roblox://",
     "placeId",
@@ -41,7 +43,6 @@ FORBIDDEN_TOKENS = (
     "roblox_watch_back",
     "roblox_exes",
     "robloxplayerbeta",
-    "os.startfile",          # launch mechanism: pc_actions uses subprocess-free approved paths
 )
 
 

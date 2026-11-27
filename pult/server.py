@@ -440,6 +440,11 @@ def _inbox_safe():
     return Inbox()
 
 
+def _pc_safe():
+    from alontito.pc_actions import PcActions
+    return PcActions()
+
+
 # --------------------------------------------------------------------------
 # HTTP layer
 # --------------------------------------------------------------------------
@@ -690,6 +695,27 @@ class PultHandler(BaseHTTPRequestHandler):
                 data = json.loads(body.decode("utf-8") or "{}")
                 return self._add_fact(data)
 
+            # pc actions (confirm-gated, off by default)
+            if path == "/api/pc":
+                pc = _pc_safe()
+                return self._send_json({"state": pc.state(),
+                                        "pending": pc.pending()})
+            if path == "/api/pc/enable":
+                if self._need_master():
+                    return self._send_json({"error": "включает только ПК"}, 403)
+                data = json.loads(body.decode("utf-8") or "{}")
+                st = _pc_safe().set_enabled(bool(data.get("enabled")))
+                return self._send_json({"ok": True, "state": st})
+            if path == "/api/pc/roots":
+                if self._need_master():
+                    return self._send_json({"error": "меняет только ПК"}, 403)
+                data = json.loads(body.decode("utf-8") or "{}")
+                st = _pc_safe().set_roots([str(r) for r in (data.get("roots") or [])])
+                return self._send_json({"ok": True, "state": st})
+            if path == "/api/pc/confirm":
+                data = json.loads(body.decode("utf-8") or "{}")
+                return self._confirm_pc(str(data.get("request_id") or ""))
+
             # devices (master only)
             m = re_match(path, r"^/api/devices/([\w-]+)/(revoke|enable)$")
             if m:
@@ -742,6 +768,12 @@ class PultHandler(BaseHTTPRequestHandler):
         answer = reply.get("text") or ""
         chat_save("user", msg)
         chat_save("assistant", answer)
+        if reply.get("pc_request"):
+            BROKER.publish({"type": "notification", "kind": "confirm",
+                            "text": f"Подтвердите действие "
+                                    f"«{reply['pc_request']['action']}» "
+                                    f"(запрос #{reply['pc_request']['request_id']})",
+                            "request_id": reply["pc_request"]["request_id"]})
         BROKER.publish({"type": "chat_done", "question": msg,
                         "answer": answer, "source": reply.get("source")})
         self._send_json({"answer": answer, "source": reply.get("source"),
@@ -860,6 +892,20 @@ class PultHandler(BaseHTTPRequestHandler):
         source = (data.get("source") or "пользователь (устройство)").strip()[:100]
         fact = AGENT.bind().memory.add_fact(text, STATUS_OFFICIAL, source)
         self._send_json({"ok": True, "fact": fact})
+
+    def _confirm_pc(self, request_id: str) -> None:
+        from alontito.pc_actions import ActionDenied, PcActionsDisabled
+        pc = _pc_safe()
+        try:
+            result = pc.confirm(request_id)
+        except PcActionsDisabled as exc:
+            return self._send_json({"ok": False, "detail": str(exc)}, 403)
+        except ActionDenied as exc:
+            return self._send_json({"ok": False, "detail": str(exc)}, 400)
+        BROKER.publish({"type": "notification", "kind": "pc_result",
+                        "text": result.get("detail") or "",
+                        "action": result.get("action")})
+        self._send_json(result)
 
     # ---- pet -----------------------------------------------------------
 

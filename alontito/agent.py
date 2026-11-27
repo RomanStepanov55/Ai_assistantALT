@@ -46,9 +46,10 @@ class Agent:
     def __init__(self, memory: Optional[Memory] = None,
                  gateway: Optional[ModelGateway] = None,
                  automations: Optional[Automations] = None,
-                 learning=None, experience=None):
+                 learning=None, experience=None, pc_actions=None):
         self.memory = memory or Memory()
         self.automations = automations or Automations()
+        self.pc = pc_actions
         self.learning = learning            # LearningEngine, lazy below
         self.experience = experience        # ExperienceMemory, lazy below
         self._gateway = gateway
@@ -58,6 +59,12 @@ class Agent:
         except ModelUnavailable as exc:     # non-local endpoint in config
             self._gateway = None
             self._brain_error = str(exc)
+
+    def _pc(self):
+        if self.pc is None:
+            from .pc_actions import PcActions
+            self.pc = PcActions()
+        return self.pc
 
     # ------------------------------------------------------------ stores
 
@@ -206,7 +213,40 @@ class Agent:
         if any(low.startswith(p) for p in
                ("что мы решали", "что мы решили", "вспомни", "что известно про")):
             return self._skill_recall(text)
+        if low.startswith(("открой ссылку", "открой сайт", "открой папку",
+                           "открой файл", "покажи папку", "прочитай файл")):
+            return self._skill_pc(text)
         return None
+
+    def _skill_pc(self, text: str) -> Dict[str, Any]:
+        """PC action: propose only; a device must confirm with ✓."""
+        low = (text or "").strip().lower()
+        from .pc_actions import ActionDenied, PcActionsDisabled
+        try:
+            if low.startswith(("открой ссылку", "открой сайт")):
+                url = text.split(None, 2)[-1].strip()
+                request = self._pc().propose("open_url", url=url)
+            elif low.startswith(("открой папку", "покажи папку")):
+                path = text.split(None, 2)[-1].strip()
+                request = self._pc().propose("list_dir", path=path)
+            elif low.startswith("открой файл"):
+                path = text.split(None, 2)[-1].strip()
+                request = self._pc().propose("open_path", path=path)
+            else:                                   # «прочитай файл …»
+                path = text.split(None, 2)[-1].strip()
+                request = self._pc().propose("read_text", path=path)
+        except ActionDenied as exc:
+            return {"text": f"нет: {exc}", "source": "skill", "skill": "pc"}
+        return {
+            "text": (f"предложил действие «{request['action']}». Ничего не "
+                     f"сделаю, пока вы не подтвердите запрос "
+                     f"#{request['request_id']} на любом устройстве "
+                     f"(2 минуты). Действия на ПК "
+                     + ("включены." if self._pc().enabled else
+                        "выключены — включите их в Настройках с ПК.")),
+            "source": "skill", "skill": "pc",
+            "pc_request": request,
+        }
 
     # ------------------------------------------------------------- answer
 

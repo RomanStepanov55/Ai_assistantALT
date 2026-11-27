@@ -328,9 +328,9 @@
   "allowed_actions_note": "пусто с 2026-11-24: агент не выполняет действий в игре; доступны только чтение (health, observe, inspect, capture_frame)"
  },
  "tests": {
-  "total": 259,
+  "total": 266,
   "modules": {
-   "test_alontito": 46,
+   "test_alontito": 50,
    "test_pet_logic": 35,
    "test_verification": 29,
    "test_eye": 21,
@@ -345,11 +345,11 @@
    "test_panel_bridge": 6,
    "test_voice_chat": 12,
    "test_input_guard": 4,
-   "test_pult": 20,
+   "test_pult": 23,
    "test_watcher_passive": 6
   },
   "command": "python -m unittest tests.test_alontito tests.test_pet_logic tests.test_verification tests.test_eye tests.test_omni_link tests.test_experience_memory tests.test_learning_engine tests.test_omni_opus5 tests.test_neuro_lab tests.test_skill_autonomy tests.test_task_planner tests.test_resource_governor tests.test_panel_bridge tests.test_voice_chat tests.test_input_guard tests.test_pult tests.test_watcher_passive",
-  "result": "259 OK (8 прежних модулей — 150, новые — 109)",
+  "result": "266 OK (8 прежних модулей — 154, новые — 112)",
   "note": "unittest discover не использовать: часть тестов меняет рабочие файлы"
  },
  "companion": {

@@ -10,7 +10,7 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-purple.svg)](LICENSE)
 [![Python: 3.10+](https://img.shields.io/badge/python-3.10%20%7C%203.11%20%7C%203.12%20%7C%203.13-blue.svg)](https://www.python.org/)
 [![GUI: PyQt6 WebEngine](https://img.shields.io/badge/3D-PyQt6%20%2F%20Three.js-green.svg)](https://threejs.org/)
-[![Tests: Passing](https://img.shields.io/badge/tests-330%2B%20passed-brightgreen.svg)](tests/)
+[![Tests: Passing](https://img.shields.io/badge/tests-240%20passed-brightgreen.svg)](tests/)
 
 ---
 
@@ -115,7 +115,7 @@ Alontito_MCP.bat        → MCP-сервер (stdio) для внешних ИИ
 python -m unittest tests.test_no_roblox tests.test_alontito tests.test_model tests.test_agent tests.test_automations_inbox tests.test_pult tests.test_pc_actions tests.test_pet_logic tests.test_teacher_generate tests.test_selfdev tests.test_neuro_lab tests.test_task_planner tests.test_resource_governor tests.test_voice_chat tests.test_experience_memory tests.test_learning_engine tests.test_omni_link tests.test_omni_opus5
 ```
 
-Полный набор — зелёный; список совпадает с командой выше (не `unittest discover`:
+Полный набор — 240 тестов, зелёный; список совпадает с командой выше (не `unittest discover`:
 есть тесты, меняющие рабочие файлы и требующие изоляции).
 
 ## 📄 Лицензия

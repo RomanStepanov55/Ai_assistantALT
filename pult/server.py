@@ -931,7 +931,7 @@ class PultHandler(BaseHTTPRequestHandler):
         imap = import_map(vendor_ready())
         imap = imap.replace("/vendor/", "/pet/vendor/")
         html = html.replace("{{IMPORTMAP}}", imap)
-        self._send_bytes(html.encode("utf-8"), _MIME[".html"])
+        self._send_bytes(html.encode("utf-8"), _MIME[".html"], cache="no-store")
 
     def _send_pet_file(self, name: str) -> None:
         path = (PET_WEB / name)

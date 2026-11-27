@@ -35,8 +35,8 @@ const STAGE_W = 1.75;        // сколько метров сцены поме�
 const FEET_V = 0.90;         // на какой доле высоты окна находятся ступни
 const CHAR_U = 0.36;         // на какой доле ширины окна стоит персонаж
 const CAM_DIST = 5.0;
-const CHAR_VIS_H = 1.9;      // минимум метров по вертикали: на широких-коротких
-                             // окнах (веб-пульт) персонаж должен влезать целиком
+const CHAR_FIT_K = 1.45;     // персонаж занимает ~70% высоты окна: по размеру,
+                             // а не во весь экран; уточняется ростом модели
 const PORTAL_Z = -0.50;      // портал справа на экране (= -Z), открыт к персонажу
 const PORTAL_BASE = 0.17;    // портал висит над полом, слот на уровне руки
 const PORTAL_H = 0.66;
@@ -53,6 +53,7 @@ renderer.toneMappingExposure = 1.05;
 const scene = new THREE.Scene();
 const camera = new THREE.PerspectiveCamera(20, 1, 0.1, 50);
 let viewW = 1, viewH = 1, pxScale = 1000;
+let charH = 1.7;                        // рост модели в метрах, уточняется в init()
 
 function fit() {
   const w = Math.max(1, canvas.clientWidth), h = Math.max(1, canvas.clientHeight);
@@ -60,8 +61,8 @@ function fit() {
   renderer.setSize(w, h, false);
   viewW = w; viewH = h;
   // На портретных окнах сцена ограничена шириной (STAGE_W), на широких-коротких
-  // (веб-пульт на ПК) — высотой: персонаж целиком важнее узкого кадра.
-  const visH = Math.max(STAGE_W / (w / h), CHAR_VIS_H);
+  // (веб-пульт на ПК) — высотой: персонаж по размеру, с воздухом вокруг.
+  const visH = Math.max(STAGE_W / (w / h), charH * CHAR_FIT_K);
   camera.fov = THREE.MathUtils.radToDeg(2 * Math.atan((visH / 2) / CAM_DIST));
   camera.aspect = w / h;
   camera.updateProjectionMatrix();
@@ -545,15 +546,118 @@ function postLayout() {
   layoutDirty = false;
 }
 
+// ------------------------------------------------------------------ веб-взаимодействия (?mode=web)
+// Повадки домашнего питомца: тычок, поглаживание, поворот за пальцем и
+// собственная жизнь в паузах. На рабочем столе хостом командует Python,
+// поэтому всё это включается только в веб-iframe (?mode=web).
+// Все хелперы — константы уровня модуля: в ES-модуле function-декларации
+// внутри if-блоков не видны снаружи.
+const WEB_MODE = Q.get('mode') === 'web';
+let lastHostCmd = performance.now();
+let asleep = false;
+
+function hostTouch() {                  // любая команда хоста / касание
+  lastHostCmd = performance.now();
+  if (asleep) { asleep = false; play('idle', { fade: 0.4 }); }
+}
+
+const HEAD_REACTIONS = ['happy', 'laugh', 'excited'];     // гладишь по голове
+const BODY_REACTIONS = ['surprised', 'shy', 'annoyed'];   // трогаешь за тело
+const IDLE_VARIATIONS = ['stretch', 'yawn', 'peek'];      // чем заняться в тишине
+const DREAM_MOVES = ['backflip', 'spin_360'];             // двойной клик
+let _lastReact = 0, _lastIdleAct = 0;
+let _downX = 0, _downY = 0, _downT = 0, _dragTurned = false, _strokeAcc = 0, _lastStrokeX = 0;
+
+const charRectHit = WEB_MODE ? function () {
+  if (!charPivot.visible || !charRoot) return null;
+  let x0 = 1e9, y0 = 1e9, x1 = -1e9, y1 = -1e9;
+  const wp = new THREE.Vector3();
+  const add = (v) => { const p = project(v.x, v.y, v.z); x0 = Math.min(x0, p[0]); y0 = Math.min(y0, p[1]); x1 = Math.max(x1, p[0]); y1 = Math.max(y1, p[1]); };
+  for (const b of Object.values(bones)) add(b.getWorldPosition(wp));
+  const m = 0.05 * pxScale / CAM_DIST;
+  return { x: x0 - m, y: y0 - m, w: x1 - x0 + 2 * m, h: y1 - y0 + 2 * m };
+} : function () { return null; };
+
+const busyReact = function () {
+  return hidden || seqOpen || (!!currentName && currentName !== 'idle' && currentName !== 'sleepy');
+};
+
+const oneShot = function (list, cooldownMs) {
+  const now = performance.now();
+  if (busyReact() || now - _lastReact < cooldownMs) return Promise.resolve();
+  _lastReact = now;
+  const clip = list[Math.floor(Math.random() * list.length)];
+  return playOnce(clip, { fade: 0.2 }).then(() => {
+    if (!hidden && !seqOpen && currentName === clip) play('idle', { fade: 0.35 });
+  });
+};
+
+const webDown = WEB_MODE ? function (e) {
+  hostTouch();
+  _downX = e.clientX; _downY = e.clientY; _downT = performance.now();
+  _dragTurned = false; _strokeAcc = 0; _lastStrokeX = e.clientX;
+} : function () {};
+
+const webMove = WEB_MODE ? function (e) {
+  if (!dragging) return;
+  const dx = e.clientX - _downX;
+  if (Math.abs(dx) > 8) _dragTurned = true;
+  if (_dragTurned) target.yaw = THREE.MathUtils.clamp(dx / 220, -1.2, 1.2);   // смотрит за пальцем
+  const r = charRectHit();
+  if (r && e.clientX >= r.x && e.clientX <= r.x + r.w && e.clientY >= r.y && e.clientY <= r.y + r.h) {
+    _strokeAcc += Math.abs(e.clientX - _lastStrokeX);
+    if (_strokeAcc > 260) { _strokeAcc = 0; oneShot(HEAD_REACTIONS, 6000); }  // погладил
+  }
+  _lastStrokeX = e.clientX;
+} : function () {};
+
+const webUp = WEB_MODE ? function (e) {
+  const quick = performance.now() - _downT < 450 && !_dragTurned &&
+                Math.abs(e.clientX - _downX) < 8 && Math.abs(e.clientY - _downY) < 8;
+  const r = charRectHit();
+  const inside = !!r && e.clientX >= r.x && e.clientX <= r.x + r.w &&
+                 e.clientY >= r.y && e.clientY <= r.y + r.h;
+  if (quick && inside) {
+    const headish = (e.clientY - r.y) < r.h * 0.45;
+    oneShot(headish ? HEAD_REACTIONS : BODY_REACTIONS, 2200);                 // тычок
+  }
+  if (_dragTurned) target.yaw = 0;                     // вернуться лицом к зрителю
+  _strokeAcc = 0;
+} : function () {};
+
+const idleBrain = WEB_MODE ? function (now) {
+  // своя жизнь: в тишине агент потягивается, зевает, выглядывает; задремлет,
+  // если тишина затянулась; любое касание или команда хоста будит
+  if (hidden || seqOpen || asleep) return;
+  if (currentName !== 'idle' && currentName !== 'sleepy') return;
+  const quiet = now - lastHostCmd;
+  if (quiet > 150000 && now - _lastIdleAct > 150000) {
+    asleep = true; play('sleepy', { fade: 0.6 }); _lastIdleAct = now; return;
+  }
+  if (quiet > 35000 && now - _lastIdleAct > 35000 && currentName === 'idle') {
+    _lastIdleAct = now;
+    const clip = IDLE_VARIATIONS[Math.floor(Math.random() * IDLE_VARIATIONS.length)];
+    playOnce(clip, { fade: 0.5 }).then(() => {
+      if (!hidden && !seqOpen && currentName === clip) play('idle', { fade: 0.4 });
+    });
+  }
+} : function () {};
+
+if (WEB_MODE) {
+  canvas.addEventListener('dblclick', () => { hostTouch(); if (!busyReact()) oneShot(DREAM_MOVES, 1500); });
+}
+
 // ------------------------------------------------------------------ ввод мыши
 let dragging = false;
 canvas.addEventListener('pointerdown', (e) => {
   if (e.button !== 0) return;
+  webDown(e);
   dragging = true; canvas.setPointerCapture(e.pointerId);
   post({ ev: 'grab', x: e.clientX, y: e.clientY });
 });
+canvas.addEventListener('pointermove', webMove);
 const endDrag = () => { if (dragging) { dragging = false; post({ ev: 'release' }); } };
-canvas.addEventListener('pointerup', endDrag);
+canvas.addEventListener('pointerup', (e) => { webUp(e); endDrag(); });
 canvas.addEventListener('pointercancel', endDrag);
 canvas.addEventListener('contextmenu', (e) => { e.preventDefault(); post({ ev: 'context', x: e.clientX, y: e.clientY }); });
 canvas.addEventListener('dblclick', (e) => post({ ev: 'dblclick', x: e.clientX, y: e.clientY }));
@@ -563,6 +667,7 @@ function lerpAngle(a, b, k) { let d = ((b - a + Math.PI) % (2 * Math.PI) + 2 * M
 const PetApi = {
   recv(m) {
     try {
+      hostTouch();
       switch (m.cmd) {
         case 'play': if (!hidden || m.clip === 'disintegrate') play(m.clip, { loop: m.loop, fade: m.fade ?? 0.25, speed: m.speed ?? 1 }); break;
         case 'face': target.yaw = (m.deg || 0) * D2R; if (m.fast) curYaw = target.yaw; break;
@@ -590,6 +695,11 @@ async function init() {
   captureRest(charRoot);
   for (const n of DRIVEN) if (!bones[n]) throw new Error('В модели нет кости ' + n + ' — риг отличается от ожидаемого (Tripo).');
 
+  // рост модели в метрах — кадр подгоняется под него (персонаж по размеру)
+  const chBox = new THREE.Box3().setFromObject(charRoot);
+  charH = Math.max(0.5, chBox.getSize(new THREE.Vector3()).y);
+  layoutDirty = true;
+
   charRoot.traverse((o) => {
     if (!o.isMesh) return;
     o.frustumCulled = false;
@@ -600,12 +710,23 @@ async function init() {
   });
   charOffset.add(charRoot);
 
-  // клипы: настоящие из .glb (если когда-нибудь появятся) имеют приоритет, остальные — процедурные
+  // клипы: настоящие из .glb (если когда-нибудь появятся) имеют приоритет, остальные — процедурные.
+  // Статичные позы из экспорта (1 канал, ~1с, без ключей) игнорируем: они убивают
+  // живую анимацию — персонаж навсегда застывает в T-позе.
   mixer = new THREE.AnimationMixer(charRoot);
   const baked = {}; (chGltf.animations || []).forEach((a) => { baked[a.name.toLowerCase()] = a; });
+  const bakedDuration = (anim) => {
+    let d = 0;
+    for (const s of (anim.samplers || [])) {
+      const acc = chGltf.accessors[s.input];
+      d = Math.max(d, (acc && acc.max ? acc.max[0] : 0));
+    }
+    return d;
+  };
   const source = {};
   for (const [name, def] of Object.entries(ANIM.clips)) {
-    if (baked[name]) { clips[name] = baked[name]; source[name] = 'glb'; }
+    const b = baked[name];
+    if (b && bakedDuration(b) > 1.1) { clips[name] = b; source[name] = 'glb'; }
     else { clips[name] = bakeClip(name, def); source[name] = 'procedural'; }
     clipMeta[name] = { loop: def.loop, props: def.props || [], meta: def.meta || {} };
   }
@@ -690,6 +811,7 @@ function loop(now) {
     curYaw = lerpAngle(curYaw, target.yaw, 1 - Math.exp(-dt * 9));
     charPivot.rotation.y = curYaw;
     updateRubik(dt); updateParticles(dt);
+    idleBrain(now);
     if (portalPivot && portalPivot.visible) {
       const t = now / 1000;
       portalPivot.position.y = PORTAL_BASE + PORTAL_H / 2 + Math.sin(t * 1.6) * 0.012;
@@ -720,6 +842,9 @@ if (DEBUG) {
     openPortalNow() { portalPivot.visible = true; seqOpen = true; setDissolve(portalDissolve, 0); portalGlow.material.opacity = 0.6; portalLight.intensity = 2.2; },
     showItem(kind, boneName) { spawnItem(kind, boneName); heldItem.obj.scale.setScalar(1.45 / heldItem.ws); },
     spawnItem, tween, dissolveOut, dissolveIn, portalSequence,
+    mode: () => ({ currentName, hidden, seqOpen, asleep, dragging,
+                   quietMs: Math.round(performance.now() - lastHostCmd),
+                   rect: charRectHit() }),
   };
 }
 

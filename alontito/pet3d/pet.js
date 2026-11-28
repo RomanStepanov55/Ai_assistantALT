@@ -269,6 +269,12 @@ function resolveKey(k) {
     else if (spec.aim) {
       if (!REST[bn].dir) throw new Error('нет rest-направления для ' + bn);
       W = new THREE.Quaternion().setFromUnitVectors(REST[bn].dir, new THREE.Vector3(...spec.aim).normalize());
+      if (spec.roll) {          // довернуть вокруг оси aim В МИРЕ после выравнивания
+        const ax = new THREE.Vector3(...spec.aim).normalize();
+        const half = THREE.MathUtils.degToRad(spec.roll) / 2;
+        W.premultiply(new THREE.Quaternion(ax.x * Math.sin(half), ax.y * Math.sin(half),
+                                           ax.z * Math.sin(half), Math.cos(half)));
+      }
     } else if (spec.rot) W = pe.clone().multiply(opsQuat(spec.rot));
     else if (spec.abs) W = opsQuat(spec.abs);
     else W = pe.clone();
@@ -415,8 +421,39 @@ function play(name, { loop, fade = 0.25, speed = 1 } = {}) {
   next.play();
   current = next; currentName = name;
   setProps(clipMeta[name].props || []);
+  if (FX_BY_CLIP[name]) spawnEmojiFx(FX_BY_CLIP[name]);
   return next;
 }
+// ---- эффекты-эмодзи: смех (😂) и идея (💡) всплывают над головой ----
+const FX_BY_CLIP = { laugh: ['😂', '😆'], idea: ['💡'] };
+function spawnEmojiFx(chars) {
+  if (hidden || !charPivot.visible) return;
+  chars.forEach((ch, i) => {
+    const cv = document.createElement('canvas');
+    cv.width = cv.height = 128;
+    const g = cv.getContext('2d');
+    g.font = '92px "Segoe UI Emoji", "Noto Color Emoji", sans-serif';
+    g.textAlign = 'center';
+    g.textBaseline = 'middle';
+    g.fillText(ch, 64, 66);
+    const tex = new THREE.CanvasTexture(cv);
+    tex.colorSpace = THREE.SRGBColorSpace;
+    const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex, transparent: true, opacity: 0, depthWrite: false }));
+    sp.scale.set(0.26, 0.26, 1);
+    sp.position.set((Math.random() - 0.5) * 0.3, 1.0, -0.2 - i * 0.16);
+    world.add(sp);
+    tween(1.5 + i * 0.3, (k) => {
+      sp.material.opacity = k < 0.12 ? k / 0.12 : Math.max(0, 1 - (k - 0.55) / 0.45);
+      sp.position.y = 1.0 + k * 0.5;
+      sp.position.x += Math.sin(k * 8 + i * 2) * 0.0025;
+    }).then(() => {
+      world.remove(sp);
+      sp.material.map.dispose();
+      sp.material.dispose();
+    });
+  });
+}
+
 function playOnce(name, { fade = 0.3, onTime = [] } = {}) {
   return new Promise((resolve) => {
     const act = play(name, { loop: false, fade });
@@ -725,8 +762,13 @@ async function init() {
     return { dur: d, channels: (anim.channels || []).length };
   };
   const source = {};
+  // Клипы, которые всегда берём процедурными: запечённые версии прошли ревью
+  // пользователя 28.11 и признаны хуже (wave - кисть в капюшоне и ладонь от
+  // зрителя, nod - качание вместо кивка, dance - ливитация, backflip - прыжок
+  // без вращения, laugh - без смеха, idea - без жеста). Остальные - glb.
+  const PROCEDURAL_OVERRIDE = new Set(['wave', 'nod', 'dance', 'backflip', 'laugh', 'idea']);
   for (const [name, def] of Object.entries(ANIM.clips)) {
-    const b = baked[name];
+    const b = PROCEDURAL_OVERRIDE.has(name) ? null : baked[name];
     const st = b ? bakedStats(b) : null;
     if (b && st.channels >= 3 && st.dur > 0.3) { clips[name] = b; source[name] = 'glb'; }
     else { clips[name] = bakeClip(name, def); source[name] = 'procedural'; }

@@ -649,6 +649,13 @@ h1 {
   font-size: var(--fs-small);
   line-height: 1.5;
 }
+/* вторая строка команд персонажу */
+.pet-actions2 {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 8px;
+}
 
 /* ------------------------------------------------------------ плашка-уведомление */
 

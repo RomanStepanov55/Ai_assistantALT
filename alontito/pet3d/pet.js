@@ -421,11 +421,33 @@ function play(name, { loop, fade = 0.25, speed = 1 } = {}) {
   next.play();
   current = next; currentName = name;
   setProps(clipMeta[name].props || []);
+  stopLoopFx();
   if (FX_BY_CLIP[name]) spawnEmojiFx(FX_BY_CLIP[name]);
+  else if (FX_LOOP_BY_CLIP[name]) startLoopFx(name);
+  for (const timed of (FX_TIMED_BY_CLIP[name] || [])) tween(timed.at, timed.fn);
   return next;
 }
 // ---- эффекты-эмодзи: смех (😂) и идея (💡) всплывают над головой ----
 const FX_BY_CLIP = { laugh: ['😂', '😆'], idea: ['💡'] };
+// цикличные эффекты (для зацикленных клипов): ноты на каждый бит танца
+const FX_LOOP_BY_CLIP = { dance: ['🎵', '🎶', '🎵'] };
+// отложенные по времени эффекты: пыль при посадке сальто
+const FX_TIMED_BY_CLIP = {
+  backflip: [{ at: 1.24, fn: () => emit(26, 0, 0.05, 0, [0.30, 0.03, 0.30], 0.12) }],
+};
+let fxLoopTimer = null;
+function stopLoopFx() {
+  if (fxLoopTimer) { clearInterval(fxLoopTimer); fxLoopTimer = null; }
+}
+function startLoopFx(name) {
+  stopLoopFx();
+  const chars = FX_LOOP_BY_CLIP[name];
+  if (!chars) return;
+  fxLoopTimer = setInterval(() => {
+    if (currentName !== name || hidden) { stopLoopFx(); return; }
+    spawnEmojiFx([chars[Math.floor(Math.random() * chars.length)]]);
+  }, 700);
+}
 function spawnEmojiFx(chars) {
   if (hidden || !charPivot.visible) return;
   chars.forEach((ch, i) => {

@@ -710,23 +710,25 @@ async function init() {
   });
   charOffset.add(charRoot);
 
-  // клипы: настоящие из .glb (если когда-нибудь появятся) имеют приоритет, остальные — процедурные.
-  // Статичные позы из экспорта (1 канал, ~1с, без ключей) игнорируем: они убивают
-  // живую анимацию — персонаж навсегда застывает в T-позе.
+  // клипы: настоящие из .glb имеют приоритет, остальные — процедурные.
+  // Статичные позы из старого экспорта (1 канал, ~1с, без ключей) игнорируем:
+  // они убивают живую анимацию — персонаж навсегда застывает в T-позе.
+  // Настоящая запечённая анимация = много каналов (≥3) и не единственный кадр.
   mixer = new THREE.AnimationMixer(charRoot);
   const baked = {}; (chGltf.animations || []).forEach((a) => { baked[a.name.toLowerCase()] = a; });
-  const bakedDuration = (anim) => {
+  const bakedStats = (anim) => {
     let d = 0;
     for (const s of (anim.samplers || [])) {
       const acc = chGltf.accessors[s.input];
       d = Math.max(d, (acc && acc.max ? acc.max[0] : 0));
     }
-    return d;
+    return { dur: d, channels: (anim.channels || []).length };
   };
   const source = {};
   for (const [name, def] of Object.entries(ANIM.clips)) {
     const b = baked[name];
-    if (b && bakedDuration(b) > 1.1) { clips[name] = b; source[name] = 'glb'; }
+    const st = b ? bakedStats(b) : null;
+    if (b && st.channels >= 3 && st.dur > 0.3) { clips[name] = b; source[name] = 'glb'; }
     else { clips[name] = bakeClip(name, def); source[name] = 'procedural'; }
     clipMeta[name] = { loop: def.loop, props: def.props || [], meta: def.meta || {} };
   }
